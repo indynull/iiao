@@ -69,7 +69,7 @@ function homeView(): string {
             required maxlength="2048" />
           <button class="btn btn--primary" type="submit">Determine</button>
         </div>
-        <p class="compose__hint">Shareable case files live at /is/&lt;token&gt; · same subject → same chaos</p>
+        <p class="compose__hint">We fetch the page, score real signals, then roast with citations · /is/&lt;token&gt; permalinks</p>
         <div class="examples" id="examples">
           ${EXAMPLES.map((e) => `<button type="button" class="chip" data-ex="${esc(e)}">${esc(e)}</button>`).join("")}
         </div>
@@ -128,7 +128,20 @@ function pipelineView(subject: string): string {
 
 function reportView(a: Analysis): string {
   const probeBits = a.probe?.ok
-    ? `title: ${a.probe.title ?? "—"}\ndesc: ${a.probe.description ?? "—"}\nstatus: ${a.probe.status ?? "—"}\nfinal: ${a.probe.finalUrl ?? "—"}`
+    ? [
+        `title: ${a.probe.title ?? "—"}`,
+        `desc: ${a.probe.description ?? "—"}`,
+        `status: ${a.probe.status ?? "—"}`,
+        `final: ${a.probe.finalUrl ?? "—"}`,
+        a.probe.signals
+          ? `signals: os=${a.probe.signals.os} kernel=${a.probe.signals.kernel} saas=${a.probe.signals.saas} cloud=${a.probe.signals.cloud} hw=${a.probe.signals.hardware}`
+          : "",
+        a.probe.headings?.length
+          ? `headings: ${a.probe.headings.slice(0, 5).join(" | ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
     : a.probe?.error
       ? `probe: ${a.probe.error}`
       : "probe: skipped / unavailable";
@@ -145,8 +158,8 @@ function reportView(a: Analysis): string {
         <article class="card card--paper">
           <div class="meta-row">
             <span class="tag">${esc(a.caseId)}</span>
-            <span class="tag">seed ${esc(a.seed)}</span>
             <span class="tag">${esc(a.kind)}</span>
+            ${a.host ? `<span class="tag">${esc(a.host)}</span>` : ""}
           </div>
           <h1 class="verdict-title">${esc(a.verdict)}</h1>
           <p class="verdict-sub">${esc(a.subtitle)}</p>
@@ -157,6 +170,13 @@ function reportView(a: Analysis): string {
           <iiao-gauge value="${a.confidence}" label="OS confidence"></iiao-gauge>
         </article>
       </div>
+
+      <article class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">What we actually found</h2>
+        <ul class="listy">
+          ${(a.findings ?? []).map((f) => `<li>${esc(f)}</li>`).join("")}
+        </ul>
+      </article>
 
       <div class="grid-2">
         <article class="card">
@@ -170,7 +190,7 @@ function reportView(a: Analysis): string {
       </div>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Criterion scores</h2>
+        <h2 class="section-title">Criterion scores (from page signals)</h2>
         <iiao-bars id="bars"></iiao-bars>
       </article>
 
@@ -182,7 +202,7 @@ function reportView(a: Analysis): string {
           </ul>
         </article>
         <article class="card">
-          <h2 class="section-title">Endorsements (fabricated)</h2>
+          <h2 class="section-title">Lab notes</h2>
           <ul class="listy listy--ice">
             ${a.endorsements.map((f) => `<li>${esc(f)}</li>`).join("")}
           </ul>
@@ -191,7 +211,7 @@ function reportView(a: Analysis): string {
 
       <div class="grid-2" style="margin-top:1rem">
         <article class="card">
-          <h2 class="section-title">Timeline of alleged history</h2>
+          <h2 class="section-title">Probe timeline</h2>
           <div class="timeline">
             ${a.timeline.map((t) => `
               <div class="timeline__item">

@@ -1,7 +1,7 @@
 # Is it an OS? (iiao)
 
-Paste any URL (or free-form claim). Receive a solemn, chaotic determination of
-operating-system-ness: decision tree, radar, gauges, red flags, rubber stamp.
+Paste any URL (or free-form claim). We **fetch the page**, extract title/meta/headings/text,
+count OS-ish lexicon, score eight axes, then stamp a satirical but **content-weighted** verdict.
 
 **Live:** https://iiao.algor.ist
 
@@ -11,14 +11,14 @@ Permalinks encode the subject in the path (no server store):
 https://iiao.algor.ist/is/<base64url(subject)>
 ```
 
-Same subject → same seeded chaos.
+Same subject + same page signals → same determination.
 
 ## Stack
 
 | Piece | Role |
 |-------|------|
-| Vite SPA | UI + deterministic analysis engine |
-| Worker (Hono) | `/api/probe` HTTP glance, `/api/health`, static assets |
+| Vite SPA | UI + content-weighted analysis engine |
+| Worker (Hono) | `/api/probe` page extract, `/api/health`, static assets |
 
 ## Dev
 

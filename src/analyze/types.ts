@@ -17,14 +17,6 @@ export type TreeNode = {
   children?: TreeNode[];
 };
 
-export type PipelineStep = {
-  id: string;
-  label: string;
-  status: "pending" | "running" | "done" | "warn";
-  ms: number;
-  blurb: string;
-};
-
 export type Analysis = {
   subject: string;
   kind: SubjectKind;
@@ -42,7 +34,23 @@ export type Analysis = {
   redFlags: string[];
   endorsements: string[];
   methodology: string[];
+  findings: string[];
   probe?: ProbeResult | null;
+};
+
+export type ProbeSignals = {
+  os: number;
+  kernel: number;
+  hardware: number;
+  schedule: number;
+  platform: number;
+  saas: number;
+  browser: number;
+  cloud: number;
+  pricing: number;
+  openSource: number;
+  security: number;
+  ai: number;
 };
 
 export type ProbeResult = {
@@ -52,5 +60,12 @@ export type ProbeResult = {
   description?: string;
   finalUrl?: string;
   bytes?: number;
+  host?: string;
+  headings?: string[];
+  /** Lowercased visible-ish text sample for scoring */
+  textSample?: string;
+  /** High-signal phrases pulled from page */
+  phrases?: string[];
+  signals?: ProbeSignals;
   error?: string;
 };
