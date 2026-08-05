@@ -70,12 +70,6 @@ function answerClass(v: string): string {
   return "answer--kinda";
 }
 
-function engineLabel(engine?: string): string {
-  if (engine === "workers-ai") return "Cloudflare Llama";
-  if (engine === "rules") return "offline rules";
-  return engine || "";
-}
-
 function reportView(
   a: Analysis,
   meta?: { thing?: string; engine?: string },
@@ -86,7 +80,6 @@ function reportView(
   const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 6);
   const thing = meta?.thing || a.stamp || a.subject;
   const showSource = thing !== a.subject;
-  const eng = engineLabel(meta?.engine);
 
   return shell(`
     <main class="stage stage--result">
@@ -98,8 +91,7 @@ function reportView(
         <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
         <p class="line">${esc(lead)}</p>
         <div class="meta-row">
-          <p class="pct">${a.confidence}% confident</p>
-          ${eng ? `<span class="engine-pill" title="How this was judged">${esc(eng)}</span>` : ""}
+          <p class="pct">${a.confidence}%</p>
         </div>
       </article>
 
