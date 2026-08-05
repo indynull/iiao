@@ -8,7 +8,7 @@ export type OsRoadmap = {
 
 /**
  * Remediation that mocks the subject — not coaching, not feature ideas.
- * AI steps only kept if they actually roast; otherwise we invent.
+ * Handcrafted only: the model keeps writing earnest or generic roasts.
  */
 export function buildRoadmap(opts: {
   thing: string;
@@ -22,51 +22,13 @@ export function buildRoadmap(opts: {
 
   const gap = 100 - conf;
   const thing = (opts.thing || "It").trim() || "It";
-  const fromModel = cleanSteps(opts.steps);
-  const invented = inventSteps(thing, opts.answer, opts.mode, gap);
-
-  const finalSteps =
-    fromModel.length >= 3 && isMocking(fromModel) && !isBland(fromModel)
-      ? fromModel.slice(0, 5)
-      : invented;
+  void opts.steps;
 
   return {
     gap,
     headline: headlineFor(thing, opts.answer, conf),
-    steps: finalSteps,
+    steps: inventSteps(thing, opts.answer, opts.mode, gap),
   };
-}
-
-function cleanSteps(raw?: string[] | null): string[] {
-  if (!raw?.length) return [];
-  return raw
-    .map((s) => String(s || "").trim().replace(/\.$/, ""))
-    .filter((s) => s.length > 12 && s.length < 220)
-    .slice(0, 5)
-    .map((s) => (s.endsWith("!") || s.endsWith("?") ? s : `${s}.`));
-}
-
-function isBland(steps: string[]): boolean {
-  const blob = steps.join(" ").toLowerCase();
-  const bland =
-    blob.match(
-      /\b(implement|integrate|enable|utilize|enhance|leverage|optimize|add support|programmable|dynamic|seamless|robust|scalable|consider|improve|upgrade the|add a|install a)\b/g,
-    )?.length ?? 0;
-  return bland >= 1;
-}
-
-/** Must sound like a roast, not a backlog. */
-function isMocking(steps: string[]): boolean {
-  const blob = steps.join(" ").toLowerCase();
-  const roast =
-    blob.match(
-      /\b(delusion|cosplay|sit down|guest|middleware|fashion|linkedin|vibes|admit|pretend|costume|food court|pathetic|not an os|never|refuse|stop calling|grow a|still not|we won't|denied| cosplay|hubris|red pen|audit fail|try harder|lol|please)\b/g,
-    )?.length ?? 0;
-  const systems =
-    blob.match(
-      /\b(kernel|ring\s*0|syscall|panic|pid|boot|oom|scheduler|userspace|init|irq)\b/g,
-    )?.length ?? 0;
-  return roast >= 2 || (roast >= 1 && systems >= 2);
 }
 
 function headlineFor(thing: string, answer: string, conf: number): string {
