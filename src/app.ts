@@ -185,16 +185,15 @@ function reportView(a: Analysis): string {
         <iiao-stats id="stats"></iiao-stats>
       </article>
 
-      <div class="grid-2">
-        <article class="card">
-          <h2 class="section-title">Decision tree (threshold tests)</h2>
-          <iiao-tree id="tree"></iiao-tree>
-        </article>
-        <article class="card">
-          <h2 class="section-title">Axis radar (0–100 from formulas)</h2>
-          <iiao-radar id="radar"></iiao-radar>
-        </article>
-      </div>
+      <article class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">Decision path (threshold tests)</h2>
+        <iiao-tree id="tree"></iiao-tree>
+      </article>
+
+      <article class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">Axis radar (0–100 from formulas)</h2>
+        <iiao-radar id="radar"></iiao-radar>
+      </article>
 
       <article class="card" style="margin-bottom:1rem">
         <h2 class="section-title">Axis scores + inputs</h2>

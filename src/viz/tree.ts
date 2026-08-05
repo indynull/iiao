@@ -1,12 +1,9 @@
 import type { TreeNode } from "../analyze/types";
 
-type Laid = {
-  node: TreeNode;
-  x: number;
-  y: number;
-  children: Laid[];
-};
-
+/**
+ * Vertical decision flow — readable cards, not a tiny compressed SVG graph.
+ * Walks the measured tree and renders each question + yes/no outcomes.
+ */
 export class IiaoTree extends HTMLElement {
   #tree: TreeNode | null = null;
 
@@ -23,19 +20,6 @@ export class IiaoTree extends HTMLElement {
     this.render();
   }
 
-  private layout(node: TreeNode, depth: number, nextLeaf: { i: number }): Laid {
-    const kids = (node.children ?? []).map((c) =>
-      this.layout(c, depth + 1, nextLeaf),
-    );
-    let x: number;
-    if (!kids.length) {
-      x = nextLeaf.i++;
-    } else {
-      x = (kids[0]!.x + kids[kids.length - 1]!.x) / 2;
-    }
-    return { node, x, y: depth, children: kids };
-  }
-
   private render() {
     const root = this.#tree;
     if (!root) {
@@ -43,94 +27,195 @@ export class IiaoTree extends HTMLElement {
       return;
     }
 
-    const laid = this.layout(root, 0, { i: 0 });
-    const leafCount = Math.max(1, countLeaves(root));
-    const depth = maxDepth(root);
-    const xGap = 168;
-    const yGap = 100;
-    const padX = 90;
-    const padY = 36;
-    const width = Math.max(720, leafCount * xGap + padX * 2);
-    const height = Math.max(320, depth * yGap + padY * 2 + 48);
-
-    const coord = (n: Laid) => ({
-      x: padX + n.x * xGap + xGap / 2,
-      y: padY + n.y * yGap,
-    });
-
-    const lines: string[] = [];
-    const boxes: string[] = [];
-
-    const walk = (n: Laid) => {
-      const p = coord(n);
-      for (const c of n.children) {
-        const q = coord(c);
-        const edgeClass = c.node.taken
-          ? `tree__edge tree__edge--taken tree__edge--${c.node.outcome ?? "mid"}`
-          : "tree__edge tree__edge--idle";
-        lines.push(
-          `<path class="${edgeClass}" d="M${p.x},${p.y + 28} C${p.x},${(p.y + q.y) / 2} ${q.x},${(p.y + q.y) / 2} ${q.x},${q.y - 28}" />`,
-        );
-        walk(c);
-      }
-      const outcome =
-        n.node.outcome ?? (n.node.children?.length ? "question" : "leaf");
-      const takenClass = n.node.taken ? "tree__node--taken" : "tree__node--idle";
-      boxes.push(`
-        <g class="tree__node tree__node--${outcome} ${takenClass}" transform="translate(${p.x}, ${p.y})">
-          <rect x="-78" y="-28" width="156" height="${n.node.detail ? 56 : 44}" rx="10" />
-          <text class="tree__text" text-anchor="middle" y="${n.node.detail ? -6 : 0}" dominant-baseline="middle">
-            ${wrapLabel(n.node.label, 26)}
-          </text>
-          ${
-            n.node.detail
-              ? `<text class="tree__detail" text-anchor="middle" y="14" dominant-baseline="middle">${escapeXml(clip(n.node.detail, 42))}</text>`
-              : ""
-          }
-        </g>
-      `);
-    };
-    walk(laid);
+    const steps = flattenSteps(root);
+    const stepsHtml = steps
+      .map((step, i) => {
+        if (step.kind === "root") {
+          return `
+            <div class="dt-step dt-step--root">
+              <div class="dt-step__index">Q</div>
+              <div class="dt-step__body">
+                <p class="dt-step__label">${esc(step.label)}</p>
+                ${step.detail ? `<p class="dt-step__detail">${esc(step.detail)}</p>` : ""}
+              </div>
+            </div>`;
+        }
+        if (step.kind === "test") {
+          return `
+            <div class="dt-step dt-step--test">
+              <div class="dt-step__index">${i}</div>
+              <div class="dt-step__body">
+                <p class="dt-step__label">${esc(step.label)}</p>
+                ${step.detail ? `<p class="dt-step__detail"><span class="dt-mono">${esc(step.detail)}</span></p>` : ""}
+                <div class="dt-branches" role="group" aria-label="Outcomes">
+                  ${step.branches
+                    .map(
+                      (b) => `
+                    <div class="dt-branch dt-branch--${b.outcome}${b.taken ? " dt-branch--taken" : " dt-branch--idle"}">
+                      <span class="dt-branch__tag">${esc(b.label)}</span>
+                      ${b.detail ? `<span class="dt-branch__meta">${esc(b.detail)}</span>` : ""}
+                      ${b.taken ? `<span class="dt-branch__badge">taken</span>` : ""}
+                    </div>`,
+                    )
+                    .join("")}
+                </div>
+              </div>
+            </div>`;
+        }
+        // leaf
+        return `
+          <div class="dt-step dt-step--leaf dt-step--${step.outcome}">
+            <div class="dt-step__index">✓</div>
+            <div class="dt-step__body">
+              <p class="dt-step__label">${esc(step.label)}</p>
+              ${step.detail ? `<p class="dt-step__detail">${esc(step.detail)}</p>` : ""}
+            </div>
+          </div>`;
+      })
+      .join('<div class="dt-connector" aria-hidden="true"></div>');
 
     this.innerHTML = `
-      <div class="tree-wrap">
-        <p class="tree-legend"><span class="tree-legend__taken"></span> taken path · <span class="tree-legend__idle"></span> not taken</p>
-        <svg class="tree" viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Measured decision tree">
-          ${lines.join("")}
-          ${boxes.join("")}
-        </svg>
+      <div class="dt">
+        <p class="dt-legend">
+          <span class="dt-legend__swatch dt-legend__swatch--taken"></span> taken
+          <span class="dt-legend__swatch dt-legend__swatch--idle"></span> not taken
+        </p>
+        <div class="dt-flow">
+          ${stepsHtml}
+        </div>
       </div>
     `;
   }
 }
 
-function clip(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1) + "…";
-}
+type FlatStep =
+  | { kind: "root"; label: string; detail?: string }
+  | {
+      kind: "test";
+      label: string;
+      detail?: string;
+      branches: {
+        label: string;
+        detail?: string;
+        outcome: string;
+        taken: boolean;
+      }[];
+    }
+  | { kind: "leaf"; label: string; detail?: string; outcome: string };
 
-function countLeaves(n: TreeNode): number {
-  if (!n.children?.length) return 1;
-  return n.children.reduce((a, c) => a + countLeaves(c), 0);
-}
+/** Convert tree into ordered vertical steps along the full test sequence. */
+function flattenSteps(root: TreeNode): FlatStep[] {
+  const out: FlatStep[] = [
+    { kind: "root", label: root.label, detail: root.detail },
+  ];
 
-function maxDepth(n: TreeNode, d = 0): number {
-  if (!n.children?.length) return d;
-  return Math.max(...n.children.map((c) => maxDepth(c, d + 1)));
-}
+  let cursor: TreeNode | null = root;
+  const seen = new Set<string>();
 
-function wrapLabel(label: string, max = 22): string {
-  if (label.length <= max) {
-    return `<tspan x="0" dy="0">${escapeXml(label)}</tspan>`;
+  while (cursor) {
+    if (seen.has(cursor.id)) break;
+    seen.add(cursor.id);
+
+    const kids: TreeNode[] = cursor.children ?? [];
+    let qNode: TreeNode | undefined;
+    if (cursor.outcome === "question" && cursor.id !== "root") {
+      qNode = cursor;
+    } else {
+      qNode = kids.find(
+        (c: TreeNode) => c.outcome === "question" || looksLikeQuestion(c),
+      );
+    }
+
+    if (!qNode) {
+      const leaf = findTakenLeaf(cursor);
+      if (leaf && leaf.id !== root.id) {
+        out.push({
+          kind: "leaf",
+          label: leaf.label,
+          detail: leaf.detail,
+          outcome:
+            leaf.outcome === "yes"
+              ? "yes"
+              : leaf.outcome === "no"
+                ? "no"
+                : "leaf",
+        });
+      }
+      break;
+    }
+
+    const branches = (qNode.children ?? []).map((b: TreeNode) => ({
+      label: b.label,
+      detail: b.detail,
+      outcome: b.outcome ?? "mid",
+      taken: !!b.taken,
+    }));
+
+    if (branches.length >= 1 && qNode.id !== "root") {
+      out.push({
+        kind: "test",
+        label: qNode.label,
+        detail: qNode.detail,
+        branches,
+      });
+    }
+
+    const taken: TreeNode | undefined = (qNode.children ?? []).find(
+      (c: TreeNode) => c.taken,
+    );
+    if (!taken) break;
+
+    const nextQ: TreeNode | undefined = (taken.children ?? []).find(
+      (c: TreeNode) => c.outcome === "question" || looksLikeQuestion(c),
+    );
+    if (nextQ) {
+      cursor = nextQ;
+      continue;
+    }
+
+    const leaf: TreeNode | undefined =
+      (taken.children ?? []).find((c: TreeNode) => !c.children?.length) ??
+      (taken.children ?? [])[0];
+    if (leaf) {
+      out.push({
+        kind: "leaf",
+        label: leaf.label,
+        detail: leaf.detail,
+        outcome:
+          leaf.outcome === "yes" ||
+          leaf.label.toLowerCase().includes("os-ward")
+            ? "yes"
+            : leaf.outcome === "no"
+              ? "no"
+              : "leaf",
+      });
+    }
+    break;
   }
-  const words = label.split(/\s+/);
-  const mid = Math.ceil(words.length / 2);
-  const a = words.slice(0, mid).join(" ");
-  const b = words.slice(mid).join(" ");
-  return `<tspan x="0" dy="-0.35em">${escapeXml(a)}</tspan><tspan x="0" dy="1.1em">${escapeXml(b)}</tspan>`;
+
+  return out;
 }
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function looksLikeQuestion(n: TreeNode): boolean {
+  return /\?$/.test(n.label.trim()) || n.id.startsWith("t-") || n.id.startsWith("Q");
+}
+
+function findTakenLeaf(n: TreeNode): TreeNode | null {
+  if (n.taken && !n.children?.length) return n;
+  for (const c of n.children ?? []) {
+    if (!c.taken) continue;
+    const f = findTakenLeaf(c);
+    if (f) return f;
+  }
+  return null;
+}
+
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 if (!customElements.get("iiao-tree")) {

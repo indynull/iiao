@@ -23,10 +23,10 @@ export class IiaoRadar extends HTMLElement {
       return;
     }
 
-    const size = 280;
+    const size = 360;
     const cx = size / 2;
     const cy = size / 2;
-    const maxR = 100;
+    const maxR = 118;
     const n = data.length;
     const levels = 4;
 
@@ -54,7 +54,8 @@ export class IiaoRadar extends HTMLElement {
       .map((d, i) => {
         const [x, y] = pt(i, 1.18);
         const anchor = x < cx - 8 ? "end" : x > cx + 8 ? "start" : "middle";
-        return `<text class="radar__label" x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle">${escapeXml(shortAxis(d.axis))}</text>`;
+        return `<text class="radar__label" x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle">${escapeXml(shortAxis(d.axis))}</text>
+          <text class="radar__val" x="${x}" y="${y + (y < cy ? -12 : 12)}" text-anchor="${anchor}">${Math.round(d.value)}</text>`;
       })
       .join("");
 
