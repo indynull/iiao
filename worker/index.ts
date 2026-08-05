@@ -5,6 +5,7 @@ import { analyze } from "../src/analyze/engine";
 import { classify, preferRulesComedy } from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
+import { boardVoice, revoiceText } from "../src/analyze/voice";
 import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
 
 export type Env = {
@@ -155,20 +156,27 @@ app.post("/api/judge", async (c) => {
 
   if (!analysis) {
     analysis = analyze(resolved.thing, probe);
-    analysis = {
-      ...analysis,
-      subject,
-      stamp: resolved.thing !== subject ? resolved.thing : analysis.stamp,
-    };
   }
 
-  if (resolved.thing && resolved.thing !== subject) {
-    analysis = {
-      ...analysis,
-      subject,
-      stamp: resolved.thing,
-    };
-  }
+  // Board addresses the user: "my cat" → "your cat" everywhere in the roast
+  const voiceSrc = resolved.thing || subject;
+  const voiced = boardVoice(analysis.stamp || voiceSrc);
+  analysis = {
+    ...analysis,
+    subject,
+    stamp: voiced,
+    subtitle: revoiceText(analysis.subtitle, voiceSrc),
+    roast: (analysis.roast ?? []).map((l) => revoiceText(l, voiceSrc)),
+    findings: (analysis.findings ?? []).map((l) => revoiceText(l, voiceSrc)),
+    redFlags: (analysis.redFlags ?? []).map((l) => revoiceText(l, voiceSrc)),
+    roadmap: analysis.roadmap
+      ? {
+          ...analysis.roadmap,
+          headline: revoiceText(analysis.roadmap.headline, voiceSrc),
+          steps: analysis.roadmap.steps.map((s) => revoiceText(s, voiceSrc)),
+        }
+      : analysis.roadmap,
+  };
 
   const modelUsed = engine === "workers-ai" ? MODEL : null;
 
@@ -520,6 +528,8 @@ function analysisFromAi(
   }
   const score =
     j.answer === "YES" ? 0.88 : j.answer === "NO" ? 0.22 : 0.52;
+  const voiced = boardVoice(thing);
+  const revoice = (s: string) => revoiceText(s, thing);
   const criteria = notes.map((n, i) => {
     // Vary axes so radar isn't a perfect blob
     const wobble = ((i * 17 + confHash(thing + n.label)) % 11) / 100;
@@ -530,12 +540,14 @@ function analysisFromAi(
       label: n.label,
       weight: 1,
       score: Math.min(0.97, Math.max(0.08, base)),
-      note: n.note,
+      note: revoice(n.note),
       axis: n.label,
       inputs: [] as string[],
     };
   });
-  const roast = [j.line, ...j.lines];
+  const line = revoice(j.line);
+  const lines = j.lines.map(revoice);
+  const roast = [line, ...lines];
   const signals = probe?.signals;
   const signalStats = signals
     ? (
@@ -559,15 +571,15 @@ function analysisFromAi(
     caseId: "IIAO-AI",
     confidence: j.confidence,
     verdict: j.answer,
-    subtitle: j.line,
-    stamp: thing,
+    subtitle: line,
+    stamp: voiced,
     criteria,
     tree: buildJudgmentTree({
-      name: thing,
+      name: voiced,
       answer: j.answer,
       confidence: j.confidence,
-      line: j.line,
-      notes,
+      line,
+      notes: notes.map((n) => ({ ...n, note: revoice(n.note) })),
     }),
     radar: criteria.map((c) => ({
       axis: c.axis,
@@ -578,11 +590,11 @@ function analysisFromAi(
       { label: "workers-ai", delta: j.confidence, total: j.confidence },
     ],
     timeline: [],
-    redFlags: j.lines.slice(0, 2),
+    redFlags: lines.slice(0, 2),
     findings: roast,
     roast,
     roadmap: buildRoadmap({
-      thing,
+      thing: voiced,
       answer: j.answer,
       confidence: j.confidence,
       mode: classify({
@@ -594,7 +606,7 @@ function analysisFromAi(
         signals: probe?.signals ?? emptySignals(),
         probeOk: !!probe?.ok,
       }),
-      steps: j.roadmap,
+      steps: j.roadmap?.map(revoice),
     }),
     methodology: [],
     probe,

@@ -1,4 +1,5 @@
 import { spice } from "./comedy";
+import { boardVoice } from "./voice";
 
 export type OsRoadmap = {
   gap: number;
@@ -21,7 +22,7 @@ export function buildRoadmap(opts: {
   if (conf >= 100) return null;
 
   const gap = 100 - conf;
-  const thing = (opts.thing || "It").trim() || "It";
+  const thing = boardVoice((opts.thing || "It").trim() || "It");
   void opts.steps;
 
   return {

@@ -11,6 +11,7 @@ import { resolveThing } from "./thing";
 import { seedHex } from "./seed";
 import { buildJudgmentTree } from "./tree-build";
 import { buildRoadmap } from "./roadmap";
+import { boardVoice } from "./voice";
 import type {
   Analysis,
   Criterion,
@@ -208,6 +209,7 @@ export function analyze(
 
   const seed = seedHex(ctx.subject.toLowerCase());
   const roast = [joke.line, ...joke.lines];
+  const voiced = boardVoice(resolved.thing);
 
   return {
     subject: subjectRaw.trim(),
@@ -218,10 +220,10 @@ export function analyze(
     confidence: joke.confidence,
     verdict: joke.answer,
     subtitle: joke.line,
-    stamp: resolved.thing,
+    stamp: voiced,
     criteria,
     tree: buildJudgmentTree({
-      name: ctx.displayName,
+      name: voiced,
       answer: joke.answer,
       confidence: joke.confidence,
       line: joke.line,
@@ -240,7 +242,7 @@ export function analyze(
     findings: roast,
     roast,
     roadmap: buildRoadmap({
-      thing: resolved.thing,
+      thing: voiced,
       answer: joke.answer,
       confidence: joke.confidence,
       mode: joke.mode,

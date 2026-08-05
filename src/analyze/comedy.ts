@@ -6,6 +6,7 @@
  * - Real kernels → YES, but still roast quality / UX / history
  */
 import type { ProbeSignals, SubjectKind } from "./types";
+import { boardVoice } from "./voice";
 
 export type ComedyMode =
   | "absurd_os"
@@ -557,11 +558,13 @@ function genericBundle(name: string, ctx: ComedyCtx, sp: number): Bundle {
 export function jokeFor(ctx: ComedyCtx): JokeResult {
   const mode = classify(ctx);
   const sp = spice(ctx.subject.toLowerCase() + "|" + ctx.displayName.toLowerCase());
-  const name = ctx.displayName;
+  // User said "my cat" → board talks about "your cat"
+  const name = boardVoice(ctx.displayName);
+  const subjectForMatch = `${ctx.subject} ${ctx.displayName}`.toLowerCase();
 
   let b: Bundle;
-  if (mode === "absurd_os") b = absurdOsBundle(name, ctx.subject, sp);
-  else if (mode === "accessory") b = accessoryBundle(name, ctx.subject, sp);
+  if (mode === "absurd_os") b = absurdOsBundle(name, subjectForMatch, sp);
+  else if (mode === "accessory") b = accessoryBundle(name, subjectForMatch, sp);
   else if (mode === "marketing") b = marketingBundle(name, ctx, sp);
   else if (mode === "real_os") b = realOsBundle(name, sp);
   else b = genericBundle(name, ctx, sp);

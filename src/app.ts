@@ -1,5 +1,6 @@
 import { analyze } from "./analyze/engine";
 import type { Analysis } from "./analyze/types";
+import { boardVoice } from "./analyze/voice";
 import { navigate, parseLocation, reportPath } from "./routes";
 
 const EXAMPLES = [
@@ -155,8 +156,10 @@ function reportView(
   const answer = a.verdict;
   const lead = a.subtitle;
   const rest = (a.roast ?? []).filter((l) => l && l !== lead);
-  const thing = meta?.thing || a.stamp || a.subject;
-  const showSource = thing !== a.subject;
+  // User typed "my cat" — board talks about "your cat"
+  const thing = boardVoice(meta?.thing || a.stamp || a.subject);
+  const showSource =
+    boardVoice(a.subject) !== a.subject || thing !== a.subject;
 
   // Joke only: verdict + roast + remediation. No lab tables.
   return shell(`

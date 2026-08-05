@@ -117,11 +117,12 @@ describe("single-serving comedy", () => {
     expect(preferRulesComedy("sunglasses")).toBe(true);
     const a = analyze("my cat");
     expect(a.verdict).toBe("YES");
+    expect(a.stamp.toLowerCase()).toBe("your cat");
     const blob = [a.subtitle, ...(a.roast ?? [])].join(" ").toLowerCase();
     expect(blob).not.toMatch(
-      /is an operating system|hairballs as|suspiciously calm|purring as/,
+      /is an operating system|hairballs as|suspiciously calm|purring as|\bmy cat\b/,
     );
-    expect(blob).toMatch(/guest|kernel|nap|irq|lap|ebusy|instinct/);
+    expect(blob).toMatch(/your cat|guest|kernel|nap|irq|lap|ebusy|instinct/);
   });
 });
 
@@ -132,3 +133,5 @@ describe("permalink", () => {
     expect(reportPath(s).startsWith("/is/")).toBe(true);
   });
 });
+
+// temp
