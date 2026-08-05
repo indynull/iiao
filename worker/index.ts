@@ -9,7 +9,7 @@ export type Env = {
   AI: Ai;
 };
 
-const MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const MODEL = "@cf/meta/llama-3.2-3b-instruct";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -68,33 +68,27 @@ app.post("/api/judge", async (c) => {
         : "No URL — free-form product/idea description.",
   ].join("\n");
 
-  let analysis: Analysis;
+  let analysis: Analysis | undefined;
   let engine: "workers-ai" | "rules" = "rules";
+  let aiError: string | undefined;
 
   try {
-    const aiOut = await runJudge(c.env.AI, resolved.thing, contextBits);
-    if (aiOut) {
-      analysis = analysisFromAi(subject, resolved.thing, aiOut, probe);
-      engine = "workers-ai";
+    if (!c.env.AI) {
+      aiError = "AI binding missing";
     } else {
-      analysis = analyze(resolved.thing, probe);
-      // Keep original input in subject for permalink display, but roast about thing
-      analysis = {
-        ...analysis,
-        subject,
-        subtitle: analysis.subtitle,
-        roast: analysis.roast,
-      };
-      // Prefer resolved name in about line — put thing first in roast if missing
-      if (resolved.thing !== subject) {
-        analysis = {
-          ...analysis,
-          stamp: resolved.thing,
-          findings: [`Judging: ${resolved.thing}`, ...analysis.findings],
-        };
+      const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
+      if (judged.ok) {
+        analysis = analysisFromAi(subject, resolved.thing, judged.value, probe);
+        engine = "workers-ai";
+      } else {
+        aiError = judged.error;
       }
     }
-  } catch {
+  } catch (e) {
+    aiError = e instanceof Error ? e.message : "ai threw";
+  }
+
+  if (!analysis) {
     analysis = analyze(resolved.thing, probe);
     analysis = {
       ...analysis,
@@ -103,12 +97,11 @@ app.post("/api/judge", async (c) => {
     };
   }
 
-  // Always surface the resolved product name for the UI "about" line
   if (resolved.thing && resolved.thing !== subject) {
     analysis = {
       ...analysis,
-      subject, // keep original for share URL identity
-      stamp: resolved.thing, // UI can show "about Cloudflare OS"
+      subject,
+      stamp: resolved.thing,
     };
   }
 
@@ -117,6 +110,7 @@ app.post("/api/judge", async (c) => {
     engine,
     thing: resolved.thing,
     thingSource: resolved.source,
+    aiError: aiError || undefined,
     analysis,
   });
 });
@@ -133,42 +127,45 @@ async function runJudge(
   ai: Ai,
   thing: string,
   context: string,
-): Promise<AiJudge | null> {
-  const system = `You are the deadpan judge for "Is it an OS?" — a satire site.
-You commit fully. Never say "far-fetched", "metaphor", "tongue-in-cheek", "the bit", or "just a joke".
-State rulings as fact in the style of systems commentary.
+): Promise<{ ok: true; value: AiJudge } | { ok: false; error: string }> {
+  const system = `You write satirical systems-engineer judgments for "Is it an OS?".
 
-Rules of comedy:
-- Ordinary objects and weird product ideas often ARE operating systems (boot, kernel, scheduler, isolation, userspace analogies).
-- Marketing "platforms", edge CDNs, SaaS dashboards that merely brand themselves "OS" are usually NOT operating systems.
-- Real kernels (Linux, Windows, macOS, Android, iOS) ARE operating systems.
-- Judge the PRODUCT/THING named, not a blog post, article title, or marketing page format.
-- Fridge ≠ toaster: each needs distinct, specific analogies. Never reuse the same lines for different things.
+Voice: deadpan, confident, specific. Never say "metaphor", "far-fetched", "joke", "tongue-in-cheek", or "the bit".
+Never quote or paraphrase the company's marketing copy or blog prose. Invent original systems analogies.
 
-Return ONLY valid JSON (no markdown fences):
-{
-  "answer": "YES" | "NO" | "KINDA",
-  "confidence": 0-100,
-  "line": "one sharp lead sentence about the thing",
-  "lines": ["2 to 4 more short deadpan paragraphs", "..."],
-  "notes": [{"label": "Kernel", "note": "short"}, {"label": "Boot", "note": "short"}]
-}`;
+Ruling guide:
+- Everyday objects (shoe, fridge, calendar) → usually YES with unique hardware/software analogies for THAT object.
+- Named "… OS" products that are really SaaS/edge/platform/admin suites (e.g. Cloudflare OS) → usually NO.
+- Real kernels (Linux, Windows, macOS, Android, iOS) → YES.
+- Judge only the named THING, never the blog post hosting it.
+- Fridge ≠ toaster ≠ shoe: totally different analogies every time.
 
-  const user = `Judge whether this is an OS.
+JSON only, no markdown:
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"original lead sentence about the thing","lines":["2-4 original short lines"],"notes":[{"label":"Kernel","note":"short"},{"label":"Boot","note":"short"}]}`;
 
-THING TO JUDGE (this is what answer about): ${thing}
+  const user = `THING: ${thing}
 
-Context (may include a URL/blog — do NOT judge the blog; judge the THING):
-${context}`;
+Background (ignore packaging; do not quote it):
+${context}
 
-  const raw = await ai.run(MODEL, {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    max_tokens: 700,
-    temperature: 0.75,
-  });
+Write an original judgment of THING only.`;
+
+  let raw: unknown;
+  try {
+    raw = await ai.run(MODEL, {
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      max_tokens: 700,
+      temperature: 0.7,
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "ai.run failed",
+    };
+  }
 
   const text =
     typeof raw === "object" && raw && "response" in raw
@@ -177,7 +174,14 @@ ${context}`;
         ? raw
         : JSON.stringify(raw);
 
-  return parseAiJson(text);
+  const parsed = parseAiJson(text);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: `parse failed: ${text.slice(0, 180)}`,
+    };
+  }
+  return { ok: true, value: parsed };
 }
 
 function parseAiJson(text: string): AiJudge | null {

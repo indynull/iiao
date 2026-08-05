@@ -95,7 +95,21 @@ function absurdBundle(name: string, subject: string, sp: number): Bundle {
       ],
     };
   }
-  if (/\btoaster|oven|microwave|kettle|fridge\b/.test(s)) {
+  if (/\bfridge|refrigerator\b/.test(s)) {
+    return {
+      lead: pick(sp, [
+        `${nm} is a cold-storage kernel with a door interrupt and a light that only exists when observed.`,
+        `${nm} runs a long-lived cooling daemon. Leftovers are zombie processes that never exit.`,
+      ]),
+      more: [
+        "The compressor is ring 0. Shelves are mounted filesystems with weak consistency.",
+        "Open-door is a blocking syscall. The alarm is a watchdog timer.",
+        "Condensation is memory leak. Defrost is garbage collection.",
+        "Userspace: milk, leftovers, and that jar of hope from 2019.",
+      ],
+    };
+  }
+  if (/\btoaster|oven|microwave|kettle\b/.test(s)) {
     return {
       lead: pick(sp, [
         `${nm} runs a privileged heating loop and panics into breakfast.`,
