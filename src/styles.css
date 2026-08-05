@@ -769,6 +769,30 @@ body {
   transition: stroke-dasharray 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.gauge--yes .gauge__value {
+  stroke: var(--yes);
+}
+
+.gauge--no .gauge__value {
+  stroke: var(--no);
+}
+
+.gauge--kinda .gauge__value {
+  stroke: var(--kinda);
+}
+
+.gauge--yes .gauge__num {
+  color: var(--yes);
+}
+
+.gauge--no .gauge__num {
+  color: var(--no);
+}
+
+.gauge--kinda .gauge__num {
+  color: var(--kinda);
+}
+
 .gauge__readout {
   position: absolute;
   inset: 0;

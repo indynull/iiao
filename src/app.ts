@@ -175,7 +175,7 @@ function reportView(
             <p class="line">${esc(lead)}</p>
           </div>
           <div class="verdict-card__gauge">
-            <iiao-gauge value="${a.confidence}" label="confidence"></iiao-gauge>
+            <iiao-gauge value="${a.confidence}" tone="${esc(answerClass(answer).replace("answer--", ""))}" label="confidence"></iiao-gauge>
           </div>
         </div>
       </article>

@@ -2,7 +2,7 @@
 
 export class IiaoGauge extends HTMLElement {
   static get observedAttributes() {
-    return ["value", "label"];
+    return ["value", "label", "tone"];
   }
 
   connectedCallback() {
@@ -16,6 +16,7 @@ export class IiaoGauge extends HTMLElement {
   private render() {
     const value = Math.min(100, Math.max(0, Number(this.getAttribute("value") ?? 0)));
     const label = this.getAttribute("label") ?? "confidence";
+    const tone = toneClass(this.getAttribute("tone"), value);
     const r = 54;
     const c = 2 * Math.PI * r;
     const dash = (value / 100) * c * 0.75;
@@ -23,7 +24,7 @@ export class IiaoGauge extends HTMLElement {
     const rot = 135;
 
     this.innerHTML = `
-      <div class="gauge">
+      <div class="gauge gauge--${tone}">
         <svg viewBox="0 0 140 140" class="gauge__svg" aria-hidden="true">
           <circle class="gauge__track" cx="70" cy="70" r="${r}"
             fill="none" stroke-width="10"
@@ -43,6 +44,14 @@ export class IiaoGauge extends HTMLElement {
       </div>
     `;
   }
+}
+
+function toneClass(raw: string | null, value: number): string {
+  const t = (raw || "").toLowerCase();
+  if (t === "yes" || t === "no" || t === "kinda") return t;
+  if (value >= 70) return "yes";
+  if (value <= 35) return "no";
+  return "kinda";
 }
 
 function escapeHtml(s: string): string {

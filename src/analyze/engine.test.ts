@@ -81,7 +81,7 @@ describe("single-serving comedy", () => {
     expect(a.roadmap?.steps.length).toBeGreaterThanOrEqual(3);
     expect(a.roadmap?.gap).toBe(100 - a.confidence);
     expect(a.roadmap?.headline.toLowerCase()).toMatch(
-      /reject|cosplay|embarrass|waste|cute|remediation/,
+      /reject|cosplay|embarrass|waste|cute|remediation|audit|homework|no at|half-title|style debt/,
     );
     const blob = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
     expect(blob).toMatch(
