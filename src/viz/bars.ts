@@ -18,7 +18,7 @@ export class IiaoBars extends HTMLElement {
         (c, i) => `
       <div class="bar-row" style="--i: ${i}">
         <div class="bar-row__meta">
-          <span class="bar-row__label">${escapeHtml(c.label)} <span class="bar-row__w">×${c.weight}</span></span>
+          <span class="bar-row__label">${escapeHtml(c.label)}${c.weight !== 1 ? ` <span class="bar-row__w">×${c.weight}</span>` : ""}</span>
           <span class="bar-row__score">${Math.round(c.score * 100)}</span>
         </div>
         <div class="bar-row__track">

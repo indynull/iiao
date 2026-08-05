@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { resolveThing } from "../src/analyze/thing";
 import { analyze } from "../src/analyze/engine";
+import { buildJudgmentTree } from "../src/analyze/tree-build";
 import type { Analysis, ProbeResult } from "../src/analyze/types";
 
 export type Env = {
@@ -464,22 +465,53 @@ function analysisFromAi(
   j: AiJudge,
   probe: ProbeResult | null,
 ): Analysis {
-  const notes = j.notes?.length
-    ? j.notes
-    : [
-        { label: "Kernel", note: "See commentary." },
-        { label: "Boot", note: "See commentary." },
-      ];
-  const criteria = notes.map((n, i) => ({
-    id: `n${i}`,
-    label: n.label,
-    weight: 1,
-    score: j.answer === "YES" ? 0.85 : j.answer === "NO" ? 0.2 : 0.5,
-    note: n.note,
-    axis: n.label,
-    inputs: [] as string[],
-  }));
+  const stockNotes = [
+    { label: "Kernel", note: "Does a privileged core own the resources?" },
+    { label: "Boot", note: "Power-on to ready — not signup to dashboard." },
+    { label: "Scheduler", note: "Who decides what runs next?" },
+    { label: "Isolation", note: "One crash, others still standing?" },
+    { label: "Syscalls", note: "Is there a real API under the marketing?" },
+  ];
+  const notes = [...(j.notes?.length ? j.notes : [])];
+  for (const s of stockNotes) {
+    if (notes.length >= 5) break;
+    if (!notes.some((n) => n.label.toLowerCase() === s.label.toLowerCase())) {
+      notes.push(s);
+    }
+  }
+  const score =
+    j.answer === "YES" ? 0.88 : j.answer === "NO" ? 0.22 : 0.52;
+  const criteria = notes.map((n, i) => {
+    // Vary axes so radar isn't a perfect blob
+    const wobble = ((i * 17 + confHash(thing + n.label)) % 11) / 100;
+    const dir = j.answer === "NO" ? -1 : 1;
+    const base = score + dir * wobble - 0.03;
+    return {
+      id: `n${i}`,
+      label: n.label,
+      weight: 1,
+      score: Math.min(0.97, Math.max(0.08, base)),
+      note: n.note,
+      axis: n.label,
+      inputs: [] as string[],
+    };
+  });
   const roast = [j.line, ...j.lines];
+  const signals = probe?.signals;
+  const signalStats = signals
+    ? (
+        [
+          ["os", "OS wording", signals.os],
+          ["kernel", "Kernel", signals.kernel],
+          ["saas", "SaaS", signals.saas],
+          ["platform", "Platform", signals.platform],
+          ["cloud", "Cloud", signals.cloud],
+          ["pricing", "Pricing", signals.pricing],
+        ] as [string, string, number][]
+      )
+        .filter(([, , n]) => n > 0)
+        .map(([key, label, count]) => ({ key, label, count }))
+    : [];
   return {
     subject: originalInput,
     kind: looksLikeUrl(originalInput) ? "url" : "claim",
@@ -491,18 +523,18 @@ function analysisFromAi(
     subtitle: j.line,
     stamp: thing,
     criteria,
-    tree: {
-      id: "root",
-      label: `Is ${thing} an OS?`,
-      taken: true,
-      outcome: "question",
-      children: [],
-    },
+    tree: buildJudgmentTree({
+      name: thing,
+      answer: j.answer,
+      confidence: j.confidence,
+      line: j.line,
+      notes,
+    }),
     radar: criteria.map((c) => ({
       axis: c.axis,
       value: Math.round(c.score * 100),
     })),
-    signalStats: [],
+    signalStats,
     confidenceSteps: [
       { label: "workers-ai", delta: j.confidence, total: j.confidence },
     ],
@@ -513,6 +545,12 @@ function analysisFromAi(
     methodology: [],
     probe,
   };
+}
+
+function confHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
 }
 
 function looksLikeUrl(s: string): boolean {

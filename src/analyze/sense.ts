@@ -9,6 +9,7 @@ import {
 } from "./comedy";
 import { resolveThing } from "./thing";
 import { seedHex } from "./seed";
+import { buildJudgmentTree } from "./tree-build";
 import type {
   Analysis,
   Criterion,
@@ -16,7 +17,6 @@ import type {
   ProbeSignals,
   SignalStat,
   SubjectKind,
-  TreeNode,
 } from "./types";
 
 export type SenseCtx = {
@@ -157,59 +157,6 @@ export function buildContext(
   };
 }
 
-function simpleTree(
-  name: string,
-  answer: string,
-  line: string,
-  confidence: number,
-): TreeNode {
-  const yes = answer === "YES" || answer === "KINDA";
-  return {
-    id: "root",
-    label: `Is ${shortQuote(name, 28)} an OS?`,
-    taken: true,
-    outcome: "question",
-    children: [
-      {
-        id: "y",
-        label: "Yes",
-        taken: yes,
-        outcome: "yes",
-        detail: yes ? line : undefined,
-        children: yes
-          ? [
-              {
-                id: "leaf",
-                label: `${answer} · ${confidence}%`,
-                taken: true,
-                outcome: "leaf",
-                detail: line,
-              },
-            ]
-          : [],
-      },
-      {
-        id: "n",
-        label: "No",
-        taken: !yes,
-        outcome: "no",
-        detail: !yes ? line : undefined,
-        children: !yes
-          ? [
-              {
-                id: "leaf",
-                label: `${answer} · ${confidence}%`,
-                taken: true,
-                outcome: "leaf",
-                detail: line,
-              },
-            ]
-          : [],
-      },
-    ],
-  };
-}
-
 function caseId(subject: string): string {
   const seed = seedHex(subject.toLowerCase());
   return `IIAO-${seed.slice(0, 4).toUpperCase()}-${seed.slice(4, 8).toUpperCase()}`;
@@ -272,7 +219,13 @@ export function analyze(
     subtitle: joke.line,
     stamp: resolved.thing,
     criteria,
-    tree: simpleTree(ctx.displayName, joke.answer, joke.line, joke.confidence),
+    tree: buildJudgmentTree({
+      name: ctx.displayName,
+      answer: joke.answer,
+      confidence: joke.confidence,
+      line: joke.line,
+      notes: criteria.map((c) => ({ label: c.label, note: c.note })),
+    }),
     radar: criteria.map((c) => ({
       axis: c.axis,
       value: Math.round(c.score * 100),

@@ -1,6 +1,10 @@
 import { analyze } from "./analyze/engine";
 import type { Analysis } from "./analyze/types";
 import { navigate, parseLocation, reportPath } from "./routes";
+import type { IiaoTree } from "./viz/tree";
+import type { IiaoRadar } from "./viz/radar";
+import type { IiaoBars } from "./viz/bars";
+import type { IiaoStats } from "./viz/stats";
 
 const EXAMPLES = [
   "a shoe",
@@ -9,6 +13,23 @@ const EXAMPLES = [
   "https://www.cloudflare.com/",
   "https://kernel.org/",
   "emacs",
+];
+
+const LOAD_GATES = [
+  { q: "Does it run anything?", a: "scanning schedulers…" },
+  { q: "Kernel-ish core?", a: "poking ring 0…" },
+  { q: "Real isolation?", a: "crash one, watch the rest…" },
+  { q: "Boot ≠ signup?", a: "timing power-on…" },
+  { q: "Marketing claiming OS?", a: "red-penning copy…" },
+];
+
+const THINKS = [
+  "convening the board…",
+  "finding the product…",
+  "counting syscalls…",
+  "asking the model…",
+  "weighing the evidence…",
+  "almost certified…",
 ];
 
 function esc(s: string): string {
@@ -56,10 +77,49 @@ function homeView(): string {
 }
 
 function loadingView(subject: string): string {
+  const gates = LOAD_GATES.map(
+    (g, i) => `
+    <li class="load-gate" data-i="${i}" style="--i:${i}">
+      <span class="load-gate__dot" aria-hidden="true"></span>
+      <span class="load-gate__q">${esc(g.q)}</span>
+      <span class="load-gate__a">${esc(g.a)}</span>
+    </li>`,
+  ).join("");
+
   return shell(`
     <main class="stage stage--load">
-      <p class="thinking" id="think">thinking…</p>
+      <p class="thinking" id="think">convening the board…</p>
       <p class="subject-quiet">${esc(subject)}</p>
+
+      <div class="load-board" aria-live="polite">
+        <div class="load-board__head">
+          <span class="load-board__badge">live path</span>
+          <span class="load-board__hint" id="load-hint">walking the decision tree</span>
+        </div>
+        <ol class="load-gates" id="load-gates">
+          ${gates}
+        </ol>
+        <div class="load-meters">
+          <div class="load-gauge" aria-hidden="true">
+            <svg viewBox="0 0 120 70" class="load-gauge__svg">
+              <path class="load-gauge__track" d="M14 58 A46 46 0 0 1 106 58" fill="none" stroke-width="10" stroke-linecap="round"/>
+              <path class="load-gauge__fill" id="load-gauge-fill" d="M14 58 A46 46 0 0 1 106 58" fill="none" stroke-width="10" stroke-linecap="round" pathLength="100"/>
+            </svg>
+            <div class="load-gauge__num"><span id="load-pct">0</span>%</div>
+          </div>
+          <div class="load-bars" aria-hidden="true">
+            ${["kernel", "boot", "sched", "saas", "claim"]
+              .map(
+                (lab, i) => `
+              <div class="load-bar" style="--i:${i}">
+                <span class="load-bar__lab">${lab}</span>
+                <span class="load-bar__track"><span class="load-bar__fill"></span></span>
+              </div>`,
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
     </main>
   `);
 }
@@ -80,18 +140,26 @@ function reportView(
   const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 6);
   const thing = meta?.thing || a.stamp || a.subject;
   const showSource = thing !== a.subject;
+  const hasRadar = (a.radar?.length ?? 0) >= 3;
+  const hasTree = Boolean(a.tree?.children?.length);
+  const hasSignals = (a.signalStats?.length ?? 0) > 0;
+  const hasBars = notes.length > 0;
 
   return shell(`
     <main class="stage stage--result">
       <article class="verdict-card">
-        <p class="about">
-          ${esc(thing)}
-          ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
-        </p>
-        <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
-        <p class="line">${esc(lead)}</p>
-        <div class="meta-row">
-          <p class="pct">${a.confidence}%</p>
+        <div class="verdict-card__grid">
+          <div class="verdict-card__copy">
+            <p class="about">
+              ${esc(thing)}
+              ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
+            </p>
+            <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
+            <p class="line">${esc(lead)}</p>
+          </div>
+          <div class="verdict-card__gauge">
+            <iiao-gauge value="${a.confidence}" label="confidence"></iiao-gauge>
+          </div>
         </div>
       </article>
 
@@ -107,17 +175,45 @@ function reportView(
       }
 
       ${
-        notes.length
+        hasTree || hasRadar
+          ? `<section class="section">
+        <h2 class="section__label">How we got here</h2>
+        <div class="viz-grid">
+          ${
+            hasTree
+              ? `<div class="viz-panel viz-panel--tree">
+            <h3 class="viz-panel__h">Decision path</h3>
+            <iiao-tree id="viz-tree"></iiao-tree>
+          </div>`
+              : ""
+          }
+          ${
+            hasRadar
+              ? `<div class="viz-panel viz-panel--radar">
+            <h3 class="viz-panel__h">OS-ness radar</h3>
+            <iiao-radar id="viz-radar"></iiao-radar>
+          </div>`
+              : ""
+          }
+        </div>
+      </section>`
+          : ""
+      }
+
+      ${
+        hasBars
           ? `<section class="section">
         <h2 class="section__label">Systems notes</h2>
-        <ul class="notes">
-          ${notes
-            .map(
-              (c) =>
-                `<li><span class="notes__k">${esc(c.label)}</span><span>${esc(c.note)}</span></li>`,
-            )
-            .join("")}
-        </ul>
+        <iiao-bars id="viz-bars"></iiao-bars>
+      </section>`
+          : ""
+      }
+
+      ${
+        hasSignals
+          ? `<section class="section">
+        <h2 class="section__label">Evidence desk</h2>
+        <iiao-stats id="viz-stats"></iiao-stats>
       </section>`
           : ""
       }
@@ -138,13 +234,6 @@ function toast(msg: string) {
   window.setTimeout(() => el.classList.remove("show"), 2000);
 }
 
-const THINKS = [
-  "thinking…",
-  "finding the product…",
-  "asking the model…",
-  "almost…",
-];
-
 type JudgeResponse = {
   ok: boolean;
   engine?: string;
@@ -157,12 +246,39 @@ async function runLoad(
   root: HTMLElement,
   subject: string,
 ): Promise<{ analysis: Analysis; thing?: string; engine?: string }> {
-  const el = root.querySelector("#think");
-  let i = 0;
-  const t = window.setInterval(() => {
-    i = (i + 1) % THINKS.length;
-    if (el) el.textContent = THINKS[i]!;
-  }, 500);
+  const thinkEl = root.querySelector("#think");
+  const hintEl = root.querySelector("#load-hint");
+  const pctEl = root.querySelector("#load-pct");
+  const fillEl = root.querySelector<SVGPathElement>("#load-gauge-fill");
+  const gates = [...root.querySelectorAll<HTMLElement>(".load-gate")];
+
+  let thinkI = 0;
+  let gateI = 0;
+  let pct = 0;
+
+  const tickThink = window.setInterval(() => {
+    thinkI = (thinkI + 1) % THINKS.length;
+    if (thinkEl) thinkEl.textContent = THINKS[thinkI]!;
+  }, 700);
+
+  const tickBoard = window.setInterval(() => {
+    if (gateI < gates.length) {
+      gates[gateI]?.classList.add("load-gate--on");
+      if (gateI > 0) gates[gateI - 1]?.classList.add("load-gate--done");
+      if (hintEl) hintEl.textContent = LOAD_GATES[gateI]?.a ?? "";
+      gateI += 1;
+    } else {
+      gates.forEach((g) => g.classList.add("load-gate--done", "load-gate--on"));
+    }
+    pct = Math.min(92, pct + 11 + Math.floor(Math.random() * 8));
+    if (pctEl) pctEl.textContent = String(pct);
+    if (fillEl) fillEl.style.strokeDashoffset = String(100 - pct);
+  }, 480);
+
+  if (fillEl) {
+    fillEl.style.strokeDasharray = "100";
+    fillEl.style.strokeDashoffset = "100";
+  }
 
   try {
     const res = await fetch("/api/judge", {
@@ -181,7 +297,8 @@ async function runLoad(
   } catch {
     /* fall through */
   } finally {
-    window.clearInterval(t);
+    window.clearInterval(tickThink);
+    window.clearInterval(tickBoard);
   }
 
   return { analysis: analyze(subject, null), engine: "rules" };
@@ -204,6 +321,23 @@ function bindHome(root: HTMLElement) {
 }
 
 function bindReport(root: HTMLElement, a: Analysis) {
+  const tree = root.querySelector<IiaoTree>("#viz-tree");
+  if (tree) tree.tree = a.tree;
+
+  const radar = root.querySelector<IiaoRadar>("#viz-radar");
+  if (radar) radar.data = a.radar ?? [];
+
+  const bars = root.querySelector<IiaoBars>("#viz-bars");
+  if (bars) bars.items = a.criteria ?? [];
+
+  const stats = root.querySelector<IiaoStats>("#viz-stats");
+  if (stats) {
+    stats.data = {
+      signals: a.signalStats ?? [],
+      steps: a.confidenceSteps ?? [],
+    };
+  }
+
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
     const body = [a.verdict, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
