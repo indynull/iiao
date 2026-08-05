@@ -37,15 +37,18 @@ body {
 
 #app {
   min-height: 100dvh;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .page {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  width: min(640px, calc(100% - 2rem));
+  width: min(640px, calc(100% - 2.5rem));
   margin: 0 auto;
-  padding: 2.5rem 0 1.5rem;
+  padding: 2.5rem 0.25rem 1.5rem;
+  overflow: visible;
 }
 
 .stage {
@@ -54,17 +57,19 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 1rem 0 2rem;
+  overflow: visible;
+  min-width: 0;
 }
 
 .title {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.65rem;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(2.6rem, 9vw, 4.2rem);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  /* Serif italics/descenders and tight tracking clip the trailing ? */
-  padding-right: 0.12em;
+  font-size: clamp(2.5rem, 8.5vw, 4rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  /* Negative tracking + tight line-box clips serif glyphs (?, Y, g) */
+  padding: 0.08em 0.18em 0.12em 0.02em;
   overflow: visible;
 }
 
@@ -161,12 +166,14 @@ body {
 }
 
 .answer {
-  margin: 0 0 1rem;
+  margin: 0 0 1.15rem;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(5rem, 22vw, 8.5rem);
-  line-height: 0.9;
-  letter-spacing: -0.04em;
+  font-size: clamp(4.5rem, 18vw, 7.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  padding: 0.06em 0.15em 0.1em 0;
+  overflow: visible;
 }
 
 .answer--yes {
@@ -183,25 +190,27 @@ body {
 
 .line {
   margin: 0 0 1rem;
-  font-size: clamp(1.2rem, 3.5vw, 1.45rem);
-  line-height: 1.4;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.15rem, 3.2vw, 1.4rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   max-width: 36rem;
+  overflow-wrap: anywhere;
 }
 
 .commentary {
   margin: 0 0 1.25rem;
   max-width: 36rem;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .commentary p {
   margin: 0;
   color: var(--ink);
   font-size: 1.02rem;
-  line-height: 1.5;
+  line-height: 1.55;
   opacity: 0.88;
+  overflow-wrap: anywhere;
 }
 
 .notes {
@@ -262,7 +271,9 @@ body {
   font-family: var(--serif);
   font-style: italic;
   font-size: 1.6rem;
+  line-height: 1.3;
   color: var(--muted);
+  padding-right: 0.1em;
 }
 
 .subject-quiet {
