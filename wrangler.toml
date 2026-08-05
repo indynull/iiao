@@ -1,6 +1,7 @@
 name = "algor-iiao"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
+workers_dev = true
 
 # After first deploy, attach iiao.algor.ist in the dashboard
 # or add a route once the zone is on Cloudflare:
