@@ -80,6 +80,10 @@ describe("single-serving comedy", () => {
     expect(a.roadmap?.steps.length).toBeGreaterThanOrEqual(3);
     expect(a.roadmap?.gap).toBe(100 - a.confidence);
     expect(a.roadmap?.headline.toLowerCase()).toMatch(/os|ring/);
+    // Punchy systems comedy, not product-ticket sludge
+    const blob = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
+    expect(blob).toMatch(/ring|kernel|pid|syscall|boot|panic|irq|userspace|waf|packet/);
+    expect(blob).not.toMatch(/implement|integrate|enable|seamless/);
   });
 });
 

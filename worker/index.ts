@@ -326,23 +326,28 @@ E) Ordinary apps/SaaS not pretending:
 
 Judge only THING (product/idea). Ignore blog packaging. Unique lines every time (fridge ≠ toaster ≠ shoe).
 
-ALWAYS include "roadmap": 3–5 short steps for how THING becomes a full-blown OS (confidence is never 100).
-Roadmap rules:
-- Same dry engineer voice; commit to wild OS analogies specific to THING
-- Over-reaching and concrete (kernel, boot, syscalls, process table, isolation, panic)
-- For YES at high %: close the last style/gap points (fix bloat, real panic path, etc.)
-- For NO/KINDA: absurd upgrade path from near-miss / cosplay → ring 0
-- Never say "metaphor", "joke", "satire", or "in real life"
+ALWAYS include "roadmap": 4–5 ONE-LINERS for how THING becomes a full-blown OS (conf never 100).
+Roadmap voice (critical — punchline section):
+- Dry systems engineer with a red pen. Witty, specific to THING, over-reaching
+- Each step is a complete joke using: kernel / ring 0 / PID / syscall / boot / panic / IRQ / OOM / userspace
+- Punchy, under ~120 chars. Ban product-manager verbs: implement, integrate, enable, leverage, enhance, seamless
+- BAD: "Implement a programmable LCD for dynamic filtering"
+- GOOD: "Promote the lenses to ring 0. Retinas are userspace and they will cope."
+- BAD: "Add a boot sequence with LED light show"
+- GOOD: "Boot = unfold arms. Shutdown = lose them in a bag for three months."
+- For YES high %: last style points (bloat, optional updates, honest panic)
+- For NO/KINDA: absurd promotion from accessory/cosplay → actual OS duties
+- Never say metaphor, joke, satire, "in real life", "in a sense"
 
 Schema:
-{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}],"roadmap":["step 1","step 2","step 3"]}`;
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}],"roadmap":["punchy step","punchy step","punchy step","punchy step"]}`;
 
   const user = `THING: ${thing}
 
 Background (identify product only; do not quote):
 ${context.slice(0, 1200)}
 
-Return JSON judgment of THING, including a roadmap to full OS territory.`;
+Return JSON judgment of THING, including a punchy roadmap to full OS territory.`;
 
   let raw: unknown;
   try {
