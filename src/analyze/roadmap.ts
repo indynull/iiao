@@ -1,15 +1,14 @@
 import { spice } from "./comedy";
 
 export type OsRoadmap = {
-  /** Points still missing to "full OS" (100 − confidence) */
   gap: number;
   headline: string;
   steps: string[];
 };
 
 /**
- * Funny over-reaching upgrade path when something isn't a perfect OS.
- * Prefers punchy model steps; falls back (or replaces bland product-speak).
+ * Remediation that mocks the subject — not coaching, not feature ideas.
+ * AI steps only kept if they actually roast; otherwise we invent.
  */
 export function buildRoadmap(opts: {
   thing: string;
@@ -26,16 +25,15 @@ export function buildRoadmap(opts: {
   const fromModel = cleanSteps(opts.steps);
   const invented = inventSteps(thing, opts.answer, opts.mode, gap);
 
-  // Model often writes feature-request sludge; keep only if it has bite
   const finalSteps =
-    fromModel.length >= 3 && !isBland(fromModel)
+    fromModel.length >= 3 && isMocking(fromModel) && !isBland(fromModel)
       ? fromModel.slice(0, 5)
-      : inventSteps(thing, opts.answer, opts.mode, gap);
+      : invented;
 
   return {
     gap,
     headline: headlineFor(thing, opts.answer, conf),
-    steps: finalSteps.length ? finalSteps : invented,
+    steps: finalSteps,
   };
 }
 
@@ -48,29 +46,39 @@ function cleanSteps(raw?: string[] | null): string[] {
     .map((s) => (s.endsWith("!") || s.endsWith("?") ? s : `${s}.`));
 }
 
-/** Product-manager voice without systems jokes → dump it. */
 function isBland(steps: string[]): boolean {
   const blob = steps.join(" ").toLowerCase();
   const bland =
     blob.match(
-      /\b(implement|integrate|enable|utilize|enhance|leverage|optimize|add support|programmable|dynamic filtering|user experience|seamless|robust|scalable)\b/g,
+      /\b(implement|integrate|enable|utilize|enhance|leverage|optimize|add support|programmable|dynamic|seamless|robust|scalable|consider|improve|upgrade the|add a|install a)\b/g,
     )?.length ?? 0;
-  const punch =
+  return bland >= 1;
+}
+
+/** Must sound like a roast, not a backlog. */
+function isMocking(steps: string[]): boolean {
+  const blob = steps.join(" ").toLowerCase();
+  const roast =
     blob.match(
-      /\b(kernel|ring\s*0|syscall|panic|pid|boot|oom|scheduler|userspace|init|fsck|zombie|preempt|irq|inode|ioctl|segfault|reap|tombstone)\b/g,
+      /\b(delusion|cosplay|sit down|guest|middleware|fashion|linkedin|vibes|admit|pretend|costume|food court|pathetic|not an os|never|refuse|stop calling|grow a|still not|we won't|denied| cosplay|hubris|red pen|audit fail|try harder|lol|please)\b/g,
     )?.length ?? 0;
-  return bland >= 2 || punch < 2;
+  const systems =
+    blob.match(
+      /\b(kernel|ring\s*0|syscall|panic|pid|boot|oom|scheduler|userspace|init|irq)\b/g,
+    )?.length ?? 0;
+  return roast >= 2 || (roast >= 1 && systems >= 2);
 }
 
 function headlineFor(thing: string, answer: string, conf: number): string {
   const a = String(answer || "").toUpperCase();
+  const t = short(thing);
   if (a === "YES") {
-    return `Certified at ${conf}% — path to full-blown OS`;
+    return `${conf}% — cute. Here's how ${t} stops embarrassing the title`;
   }
   if (a === "KINDA") {
-    return `Almost an OS — how ${short(thing)} graduates`;
+    return `${t} is cosplaying. Remediation order follows`;
   }
-  return `Not an OS (yet) — how ${short(thing)} reaches ring 0`;
+  return `Rejected. How ${t} might stop wasting the board's time`;
 }
 
 function inventSteps(
@@ -83,34 +91,25 @@ function inventSteps(
   const t = short(thing);
   const a = String(answer || "").toUpperCase();
   const m = mode || "generic";
-  const noun = thingNoun(thing);
 
-  // Object-specific hooks when we recognize the bit
-  const special = specialSteps(thing, gap, sp);
+  const special = specialSteps(thing, gap, sp, a);
   if (special) return special;
 
   if (m === "absurd_os" || (a === "YES" && m !== "real_os" && m !== "marketing")) {
     return pick(sp, [
       [
-        `Crown the dumbest moving part of ${t} as ring 0. Name it. Fear it.`,
-        `Issue PIDs to every ${noun} that can fail. Orphans get reaped at dinner.`,
-        `Ship a panic that still completes the job, then blames userspace.`,
-        `Publish syscalls: open(), sulk(), pretends_to_work(). Document none.`,
-        `Skip the status page. Full OSes leave you reading tea leaves and stack traces.`,
+        `You're already YES. The +${gap} is unpaid hubris — charge it in theatrical panics.`,
+        `Stop acting surprised when userspace (the human) segfaults. You scheduled that.`,
+        `Publish a man page that insults the reader. Full OSes have contempt baked in.`,
+        `Refuse a status page forever. Ghosting is a privilege level.`,
+        `If you still want 100%, fail louder. Quiet competence is for appliances that didn't ask.`,
       ],
       [
-        `Boot sequence longer than the object. POST plays a sad little jingle.`,
-        `Preempt the human once an hour. That's not rude — that's CFS with spite.`,
-        `Abstract the surface it sits on as "hardware." Call the dust a driver.`,
-        `When it dies, print "not my fault" on the only LED. +${gap} style points.`,
-        `Refuse firmware updates. Real kernels ship bugs and call them character.`,
-      ],
-      [
-        `Mount every compartment as a filesystem with weak consistency and strong opinions.`,
-        `Watchdog timer that beeps at your life choices, not hardware faults.`,
-        `Zombie processes: leftovers, crumbs, unread messages — never reaped.`,
-        `ioctl(PLEASE) returns EPERM. ioctl(NOW) schedules you for later.`,
-        `Close the +${gap} gap by failing louder than the apps on top of you.`,
+        `Certified. Congrats. Now own the crashes instead of blaming the toast / sock / day.`,
+        `Ship one syscall nobody wants. Document it as "will not fix."`,
+        `Preempt the user mid-sentence. Call it fair scheduling.`,
+        `The gap is style, not substance — style is mockery with a kernel behind it.`,
+        `+${gap} pts: never apologize. OSes don't say sorry; they say dmesg.`,
       ],
     ]);
   }
@@ -118,25 +117,18 @@ function inventSteps(
   if (m === "accessory" || /\b(sunglass|umbrella|filter|case|hat|glove|mask)\b/i.test(t)) {
     return pick(sp, [
       [
-        `Quit the middleware gig. Stop "clipping on." Own the bus or go home.`,
-        `Scheduler for photons / rain / vibes: some get CPU, most get ICMP unreachable.`,
-        `Process table of blocked rays. If you can't graph drops, you're a fashion choice.`,
-        `init = unfold / slide on / click shut. Everything else is userspace cosplay.`,
-        `Write a man page titled ${t}(8). The only section is "not an OS (yet)."`,
+        `Admit you're middleware with a lifestyle budget. The board can hear the clip-on.`,
+        `You don't schedule processes — you schedule whether the sun is allowed. Sit down.`,
+        `Process table: empty. Kernel: a hinge. Title request: denied with prejudice.`,
+        `Keep filtering packets of light. We'll keep scoring you like a WAF, not an OS.`,
+        `Want +${gap}? Grow ring 0 or stay fashion. Cosplay is not a bootloader.`,
       ],
       [
-        `Promote the filter rules to a privilege model. Allowlist is cosplay; ring 0 is law.`,
-        `Boot from power-on, not from "the user remembered me."`,
-        `If one hinge dies, the other still drops packets. That's isolation, baby.`,
-        `Deny root to neighboring accessories. The scarf does not get CAP_SYS_ADMIN.`,
-        `Demand +${gap} pts by never saying "companion product" again under oath.`,
-      ],
-      [
-        `Replace "stylish layer" with "hostile ingress controller."`,
-        `IRQ on ambient threat. SoftIRQ on mild inconvenience.`,
-        `Userspace is the face. Kernel is whatever actually decides yes/no.`,
-        `fsck weekly: wipe smudges, reindex grudges.`,
-        `Ship a panic path: fold violently, take the room with you.`,
+        `Stop applying for kernel jobs with a résumé that says "clips on."`,
+        `Boot story is "user remembered me." That's not init. That's codependency.`,
+        `Neighboring accessories already outrank you. The hat has more state.`,
+        `We measure isolation by crash domains. You measure isolation by "indoor vs outdoor."`,
+        `+${gap} only if you stop calling yourself essential. Filters aren't thrones.`,
       ],
     ]);
   }
@@ -144,25 +136,25 @@ function inventSteps(
   if (m === "marketing" || (m === "generic" && a === "NO")) {
     return pick(sp, [
       [
-        `Delete "OS" from the hero until a process table exists. LinkedIn is not ring 0.`,
-        `Syscalls that aren't HTTP. If it needs a Wi-Fi password, it's a guest.`,
-        `Boot without a credit card. Signup is not POST. Trials are not uptime.`,
-        `One tenant OOM without collapsing the food court. That's multi-tenant, not vibes.`,
-        `When the demo ends, keep running. Kernels don't expire. Sales decks do.`,
+        `Delete "OS" from the homepage. Naming is not a kernel. It's a cry for help.`,
+        `Your syscalls are HTTP. Your privileged mode is a checkbox. We brought a red pen.`,
+        `Boot = signup. Hilarious. Real boot doesn't need a credit card or a funnel.`,
+        `Multi-tenant vibes ≠ isolation. One noisy neighbor and the food court burns.`,
+        `Demo ends, you're gone. Kernels don't expire. Sales decks do. +${gap} if you notice.`,
       ],
       [
-        `Scheduler that isn't a sales calendar with "Q3 platform vision."`,
-        `Hardware abstraction: more than "runs on AWS" and a gradient blob.`,
-        `Privileged mode that isn't "admin seat on Enterprise."`,
-        `Panic log that isn't a status tweet with a soothing illustration.`,
-        `Earn +${gap} the hard way: less branding, more things that pre-empt CPU.`,
+        `Platform slides are not privilege levels. Stop presenting. Start scheduling.`,
+        `Admin seat on Enterprise is not ring 0. It's a chair with a price tag.`,
+        `Panic log is a status tweet with a soft gradient. Pathetic. Ship a real oops.`,
+        `You asked for the title. A toaster didn't. We grade you harder on purpose.`,
+        `Come back when ${t} can fail without paging the brand team. Until then: guest.`,
       ],
       [
-        `Replace the roadmap slide with a real one: boot → schedule → panic → recover.`,
-        `Kill the "for X" subtitle. OSes don't need a vertical.`,
-        `Ship isolation that survives a noisy neighbor, not just a noisy webinar.`,
-        `Stop counting API calls as syscalls. The kernel is laughing.`,
-        `Come back when ${t} can fail without paging the brand team.`,
+        `The word OS on your box is evidence against you, not for you.`,
+        `Hardware abstraction: "runs on AWS." Congratulations on discovering someone else's OS.`,
+        `Scheduler: the sales calendar. Process table: the CRM. We're not laughing with you.`,
+        `Isolation strategy: pray the other tenant is nice. Ring 0 strategy: none.`,
+        `+${gap} requires silence about "the OS for X." Verticals are for SaaS. Sit.`,
       ],
     ]);
   }
@@ -170,18 +162,18 @@ function inventSteps(
   if (m === "real_os" || a === "YES") {
     return pick(sp, [
       [
-        `Shave bloat until boot fits in one ironic haiku and one honest panic.`,
-        `Updates optional — without treating decline as a moral failure.`,
-        `Drivers that work before the forum post, not as penance after.`,
-        `Settings that aren't a scavenger hunt with a conspiracy DLC.`,
-        `Bank the last +${gap}% by fixing the one thing people swear about in public.`,
+        `Yes, you're an OS. No, that doesn't make the installer less of a war crime.`,
+        `Updates that treat decline as crime: fixed that and you'd earn the +${gap}.`,
+        `Drivers after the forum post is not a flex. It's a hostage situation.`,
+        `Settings scavenger hunts dock style points. We have a spreadsheet.`,
+        `Title granted. Dignity pending code review. Try not to reboot mid-roast.`,
       ],
       [
-        `Fewer surprise reboots. More predictable, theatrical panics.`,
-        `Installer that apologizes once, then gets on with it.`,
-        `Stop renaming the same panel every release. Identity matters.`,
-        `Document the weird corners without a three-day certification exam.`,
-        `Style: +${gap}. Dignity: still in code review.`,
+        `Technically correct — the best kind of correct, and the least charming.`,
+        `Bloat is not a personality. Shave it or keep getting mocked in public.`,
+        `Surprise reboots are how you negotiate. We prefer predictable panic.`,
+        `Rename the same panel again and we dock another point. Identity matters.`,
+        `+${gap} is pure vibes debt. Pay it in fewer wizards and more honesty.`,
       ],
     ]);
   }
@@ -189,127 +181,137 @@ function inventSteps(
   if (a === "KINDA") {
     return pick(sp, [
       [
-        `Pick a side: substrate or decoration. Half-kernels get half-crowns.`,
-        `Own one resource completely — memory, time, or the will to live.`,
-        `Boot that doesn't start at "open the app and wait for spinner theology."`,
-        `Syscalls that aren't buttons with better fonts and worse latency.`,
-        `Close +${gap} by scheduling something meaner than a reminder.`,
+        `Half a kernel is a costume. Pick substrate or decoration before we do.`,
+        `You own nothing completely — not memory, not time, not the plot.`,
+        `Boot starts at "open the app." That's a guest badge with good fonts.`,
+        `Buttons are not syscalls. Latency with branding is still not ring 0.`,
+        `+${gap}: stop cosplaying. Schedule something meaner than a reminder.`,
       ],
       [
-        `Stop cosplaying under the hood. Either pre-empt or admit guest status.`,
-        `Process table or GTFO. Spreadsheets don't count.`,
-        `Isolation: crash one feature, leave the others plotting revenge.`,
-        `Publish a panic you can screenshot. Then recover without a blog post.`,
-        `${t} at 100% means nobody asks "but is it…?" ever again.`,
+        `OS-adjacent is what people say when they want a trophy for standing nearby.`,
+        `Process table or GTFO. Spreadsheets and dashboards do not count.`,
+        `Crash one feature and the rest plot revenge — or just die together. Be honest.`,
+        `We withhold certification because you asked nicely. That's not how kernels work.`,
+        `${t} at 100% means the question dies. Right now the question is laughing.`,
       ],
     ]);
   }
 
   return [
-    `Install a kernel that isn't a PowerPoint with confidence.`,
-    `Schedule something that isn't a product launch or a calendar hold.`,
-    `Survive a crash without paging the brand team or the group chat.`,
-    `Boot from cold metal — not from a funnel, trial, or "get started."`,
-    `Return when ${t} can fail loudly and still be boss of the machine.`,
+    `Your kernel is a PowerPoint. We graded the transitions. Fail.`,
+    `You schedule product launches, not processes. Different sport.`,
+    `Crash without a brand team and maybe we'll reopen the file.`,
+    `Boot from metal, not from a funnel. Guests don't get the crown.`,
+    `${t}: useful layer, wrong layer, wrong application, next.`,
   ];
 }
 
-/** Extra-specific jokes for common subjects. */
 function specialSteps(
   thing: string,
   gap: number,
   sp: number,
+  answer: string,
 ): string[] | null {
   const s = thing.toLowerCase();
 
   if (/\bsunglass|glasses|goggles\b/.test(s)) {
     return pick(sp, [
       [
-        `Promote the lenses to ring 0. Your retinas are userspace and they will cope.`,
-        `Packet filter for photons: default DROP on glare, ACCEPT on main-character lighting.`,
-        `Process table of blocked rays. Export Prometheus metrics named ray_drop_total.`,
-        `Boot = unfold arms. Shutdown = lose them in a bag for three months.`,
-        `Panic path: sit on them. Recover with tape. Still more honest than most kernels.`,
+        `You're a WAF for photons with a fashion budget. Stop filing for kernel privileges.`,
+        `Process table of blocked rays is a cute bit. Still not an OS. Never was.`,
+        `Boot = "user found you in a case." Init systems have higher standards.`,
+        `Crash domain: sit on them once. Recovery: tape. Honesty: higher than most SaaS.`,
+        `+${gap}? Grow a scheduler or stay decorative. The sun doesn't need your résumé.`,
       ],
       [
-        `WAF for sunlight is cute. Kernel for reality is the job. Promote yourself.`,
-        `IRQ on sudden cloud cover. SoftIRQ on someone saying "you look mysterious."`,
-        `CAP_SYS_ADMIN denied to hats. Neighboring accessories stay unprivileged.`,
-        `fsck: microfiber cloth. Journal: every smudge is a commit you regret.`,
-        `+${gap} pts when you stop calling yourself "eyewear" and start calling yourself init.`,
+        `Filtering glare is not systems programming. It's weather-dependent cosplay.`,
+        `IRQ on bright days. SoftIRQ on "you look mysterious." Neither is a process model.`,
+        `The hat has more state than you. Reflect on that — carefully, indoors.`,
+        `We score accessories as near-misses. Near-misses don't get crowns. They get smudges.`,
+        `Want full OS territory? Own the bus. Until then: middleware with arms.`,
       ],
     ]);
   }
 
   if (/\bumbrella\b/.test(s)) {
     return [
-      `Circuit breaker for weather is middleware. Become the weather kernel.`,
-      `Open = boot under load. Close = idle. Invert and claim you invented CFS.`,
-      `Drop connections from clouds without a change window or a PR review.`,
-      `If one spoke fails, isolate the sector. Don't take the whole street with you.`,
-      `+${gap}: refuse to be "a thing you forget." OSes are hard to leave at the café.`,
+      `Circuit breaker for rain. Adorable. Still not the weather kernel. Sit.`,
+      `Open/close is your entire API. We've seen kitchen timers with more syscalls.`,
+      `You drop cloud connections without a change window — and without a process table.`,
+      `One broken spoke and the sector floods. Isolation: cosplay. Title: denied.`,
+      `+${gap}: become unforgettable at the café. OSes aren't left on the bus.`,
     ];
   }
 
   if (/\btoaster|oven|microwave|kettle\b/.test(s)) {
-    return pick(sp, [
-      [
-        `Heating loop is already kernel mode — just admit it in the man page.`,
-        `Bread gets a PID. Burnt toast is a core dump you can still butter.`,
-        `Crumbs are orphaned inodes. Ship fsck as a tray you never empty.`,
-        `ioctl(BROWNNESS) — undefined behavior after four minutes. Document as "feature."`,
-        `Pop is a hardware interrupt. Miss it and userspace starves. +${gap} for drama.`,
-      ],
-      [
-        `Bagel mode: SCHED_FIFO. Everything else is niceness you'll ignore.`,
-        `POST is the little light. Failure is civilization-ending. Keep that energy.`,
-        `Userspace: slices. Kernel: coil. Never let marketing rename the coil a "platform."`,
-        `OOM killer: ejects the toast. No negotiations. No second chances.`,
-        `Status page forbidden. If it's smoking, you already know.`,
-      ],
-    ]);
+    if (answer === "YES") {
+      return pick(sp, [
+        [
+          `YES already. The +${gap} is pure drama debt — collect it in smokier panics.`,
+          `Crumbs are orphaned inodes you refuse to fsck. Own the mess; that's kernel culture.`,
+          `Bagel mode is SCHED_FIFO. Everything else is you ignoring niceness. Keep that energy.`,
+          `Userspace is bread. When it burns, blame the human. Full OS. Zero remorse.`,
+          `Never ship a status page. If it's smoking, telemetry is redundant.`,
+        ],
+        [
+          `You're certified. Stop fishing for product features. Mock the bread instead.`,
+          `ioctl(BROWNNESS) is undefined after four minutes. Document as "works as designed."`,
+          `Pop is an IRQ. Miss it and starve. That's not a bug; that's character.`,
+          `The coil is ring 0. Marketing will try to rename it a platform. Bite them.`,
+          `+${gap} for refusing firmware that "enhances the toast journey."`,
+        ],
+      ]);
+    }
+    return [
+      `Heat loop without a process table is just violence. Commit to the bit or stay appliance.`,
+      `We wanted PIDs for slices. You offered a dial. Cute dial. Wrong application.`,
+      `Panic should be theatrical. Quiet failure is for software that bills monthly.`,
+      `Boot is a light. Make it mean something or stop applying.`,
+      `+${gap} when crumbs get reaped. Until then: kitchen cosplay.`,
+    ];
   }
 
   if (/\bfridge|refrigerator\b/.test(s)) {
     return [
-      `Compressor stays ring 0. Leftovers are zombies. Label the science experiments.`,
-      `Door open = blocking syscall. Alarm = watchdog that hates your life.`,
-      `Shelves: mounted filesystems, weak consistency, strong smell-based ACLs.`,
-      `Defrost = stop-the-world GC. Condensation = the leak you'll never patch.`,
-      `+${gap}: a process table on the door that actually matches reality.`,
+      `Compressor in ring 0, leftovers as zombies — and you still hide the science experiments.`,
+      `Door-open is a blocking syscall that judges you. Lean into the contempt.`,
+      `Weak consistency on the shelves is not a bug. It's a lifestyle. Label nothing.`,
+      `Defrost GC stops the world. Condensation is the leak you'll never patch. Own it.`,
+      `+${gap}: a door process table that matches reality for once.`,
     ];
   }
 
   if (/\bshoe|sneaker|sandal|boot|sock\b/.test(s)) {
     return [
-      `Sole = ring 0. Sidewalk = bare metal. Stop apologizing for contact.`,
-      `Laces: doubly-linked list. Knots: fsync with optional deadlock.`,
-      `syscall step() → ERODE_SOUL. open(/dev/puddle) may block until dry.`,
-      `Toes are user processes. The pinky is a zombie that never reaps.`,
-      `+${gap}: a changelog. Or proudly ship none — full OS energy.`,
+      `Sole is ring 0. Sidewalk is bare metal. Stop apologizing for contact with reality.`,
+      `Laces deadlock under load. We call that a feature. You call it Tuesday.`,
+      `step() → ERODE_SOUL. Documented. Still nobody files a bug. Perfect OS culture.`,
+      `The pinky process never reaps. Zombies forever. We respect the honesty.`,
+      `+${gap} for shipping zero changelog. Full OSes ghost their release notes.`,
     ];
   }
 
   if (/\bcat|dog|hamster|bird|fish\b/.test(s)) {
     return [
-      `Instinct in kernel mode. You are a guest account with sudo-by-whining.`,
-      `Food bowl is the bootloader. Zoomies are IRQs you cannot mask.`,
-      `write(/dev/lap, self) returns EBUSY. Correct. Document it.`,
-      `Naps outrank meetings. That's priority inversion and it's policy.`,
-      `+${gap}: train the userspace daemon (you) to fail less loudly at 3am.`,
+      `You demote humans to guest. Correct. Mean. Keep policy enforcement loud.`,
+      `Food bowl bootloader. Zoomie IRQs unmaskable. The scheduler is a monster. Good.`,
+      `write(/dev/lap, self) → EBUSY. No apology. That's the standard.`,
+      `Naps outrank meetings. Priority inversion as constitution. We approve the tyranny.`,
+      `+${gap}: train the userspace daemon (the human) or replace them.`,
+    ];
+  }
+
+  if (/\bcloudflare|vercel|netlify|salesforce|notion|hubspot\b/.test(s)) {
+    return [
+      `OS in the marketing, guest on someone else's kernel. The audit is not subtle.`,
+      `Edge is not ring 0. It's a really fast lobby with a badge printer.`,
+      `Syscalls appear to be HTTPS. Privileged mode appears to be a plan tier.`,
+      `You asked for the title. We brought the checklist. Everything failed except confidence.`,
+      `+${gap}: delete the word OS, ship a process table, or enjoy the mockery.`,
     ];
   }
 
   return null;
-}
-
-function thingNoun(thing: string): string {
-  const t = thing.toLowerCase();
-  if (/\bcrumb|toast/.test(t)) return "crumb";
-  if (/\bsock|shoe|toe/.test(t)) return "toe";
-  if (/\bleftover|fridge|food/.test(t)) return "leftover";
-  if (/\bmail|inbox|message|chat/.test(t)) return "message";
-  return "unit of regret";
 }
 
 function pick<T>(sp: number, items: T[]): T {

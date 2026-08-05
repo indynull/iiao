@@ -326,28 +326,29 @@ E) Ordinary apps/SaaS not pretending:
 
 Judge only THING (product/idea). Ignore blog packaging. Unique lines every time (fridge ≠ toaster ≠ shoe).
 
-ALWAYS include "roadmap": 4–5 ONE-LINERS for how THING becomes a full-blown OS (conf never 100).
-Roadmap voice (critical — punchline section):
-- Dry systems engineer with a red pen. Witty, specific to THING, over-reaching
-- Each step is a complete joke using: kernel / ring 0 / PID / syscall / boot / panic / IRQ / OOM / userspace
-- Punchy, under ~120 chars. Ban product-manager verbs: implement, integrate, enable, leverage, enhance, seamless
-- BAD: "Implement a programmable LCD for dynamic filtering"
-- GOOD: "Promote the lenses to ring 0. Retinas are userspace and they will cope."
-- BAD: "Add a boot sequence with LED light show"
-- GOOD: "Boot = unfold arms. Shutdown = lose them in a bag for three months."
-- For YES high %: last style points (bloat, optional updates, honest panic)
-- For NO/KINDA: absurd promotion from accessory/cosplay → actual OS duties
+ALWAYS include "roadmap": 4–5 ONE-LINERS of MOCKING remediation (conf never 100).
+This is not coaching. It is a red-pen roast dressed as "how to reach 100%."
+Roadmap voice:
+- Mock THING. Insult the gaps. Prescribe humiliation, not features
+- Dry, mean, specific. Systems vocabulary as weapons (kernel, ring 0, guest, cosplay, middleware)
+- Ban: implement, integrate, enable, leverage, enhance, seamless, upgrade, install, add support
+- BAD: "Implement programmable lenses for dynamic filtering"
+- GOOD: "You're a WAF for photons with a fashion budget. Stop filing for kernel privileges."
+- BAD: "Add a proper boot sequence"
+- GOOD: "Boot = user found you in a case. Init systems have higher standards."
+- For YES: mock the remaining hubris / bloat / UX sins while admitting the title
+- For NO/KINDA: deny the title with prejudice; list why they stay guests
 - Never say metaphor, joke, satire, "in real life", "in a sense"
 
 Schema:
-{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}],"roadmap":["punchy step","punchy step","punchy step","punchy step"]}`;
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}],"roadmap":["mocking remediation","mocking remediation","mocking remediation","mocking remediation"]}`;
 
   const user = `THING: ${thing}
 
 Background (identify product only; do not quote):
 ${context.slice(0, 1200)}
 
-Return JSON judgment of THING, including a punchy roadmap to full OS territory.`;
+Return JSON judgment of THING, including a mocking remediation roadmap (roast, don't coach).`;
 
   let raw: unknown;
   try {

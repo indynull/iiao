@@ -74,16 +74,19 @@ describe("single-serving comedy", () => {
     expect(analyze("my toaster").subtitle).toBe(analyze("my toaster").subtitle);
   });
 
-  it("offers a path to full OS when under 100%", () => {
+  it("offers mocking remediation when under 100%", () => {
     const a = analyze("sunglasses");
     expect(a.confidence).toBeLessThan(100);
     expect(a.roadmap?.steps.length).toBeGreaterThanOrEqual(3);
     expect(a.roadmap?.gap).toBe(100 - a.confidence);
-    expect(a.roadmap?.headline.toLowerCase()).toMatch(/os|ring/);
-    // Punchy systems comedy, not product-ticket sludge
+    expect(a.roadmap?.headline.toLowerCase()).toMatch(
+      /reject|cosplay|embarrass|waste|cute|remediation/,
+    );
     const blob = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
-    expect(blob).toMatch(/ring|kernel|pid|syscall|boot|panic|irq|userspace|waf|packet/);
-    expect(blob).not.toMatch(/implement|integrate|enable|seamless/);
+    expect(blob).toMatch(
+      /middleware|waf|kernel|guest|denied|cosplay|sit down|fashion|title/,
+    );
+    expect(blob).not.toMatch(/implement|integrate|enable|seamless|programmable/);
   });
 });
 

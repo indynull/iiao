@@ -134,11 +134,11 @@ function roadmapSection(a: Analysis): string {
   const r = a.roadmap;
   if (!r?.steps?.length) return "";
   return `<section class="section section--roadmap">
-    <h2 class="section__label">Path to full OS</h2>
+    <h2 class="section__label">Board remediation</h2>
     <div class="roadmap">
       <div class="roadmap__head">
         <p class="roadmap__title">${esc(r.headline)}</p>
-        <p class="roadmap__gap"><span>+${r.gap}</span> pts to 100%</p>
+        <p class="roadmap__gap"><span>+${r.gap}</span> still missing</p>
       </div>
       <ol class="roadmap__steps">
         ${r.steps
