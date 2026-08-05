@@ -130,23 +130,42 @@ async function runJudge(
 ): Promise<{ ok: true; value: AiJudge } | { ok: false; error: string }> {
   const system = `You are a satirical OS certification board. Output JSON only.
 
-You speak like a systems engineer writing commit messages: dry, specific, funny without announcing humor.
-Forbidden words: metaphor, far-fetched, joke, satire, tongue-in-cheek, "the bit", "in a sense".
+Voice: systems engineer with a red pen. Dry, specific, witty. Never say metaphor, far-fetched, joke, satire, tongue-in-cheek, "the bit", or "in a sense". Never quote marketing copy.
 
-Rulings (follow strictly):
-1. Physical / everyday objects (shoe, fridge, toaster, calendar, cat, …) → answer YES. Invent object-specific boot/kernel/scheduler/userspace analogies. Never define the object like a dictionary.
-2. Fake product "OS" brands that are SaaS/edge/admin suites (Cloudflare OS, etc.) → answer NO. Attack the product as platform cosplay.
-3. Real OS kernels (Linux, Windows, macOS, Android, iOS, …) → answer YES, straightforward.
-4. Judge only THING. Ignore blog framing. Never quote marketing.
+Comedy tiers (follow strictly):
 
-Each object must get unique analogies (fridge ≠ toaster).
+A) MACHINE-ISH EVERYDAY OBJECTS that "run" something (toaster, fridge, shoe, calendar, car, cat, …):
+   → answer YES, confidence 85–97
+   → commit to wild OS analogies unique to THAT object (boot, kernel, scheduler, userspace, syscalls)
+   → never define it like a dictionary
+
+B) ACCESSORIES / FILTERS (sunglasses, umbrella, case, hat, screen protector, …):
+   → answer NO or KINDA, confidence 15–40
+   → witty near-miss: not an OS, but a subsystem role
+   → e.g. sunglasses = "not an OS but a solid filter for bad traffic / WAF for photons"
+   → do NOT force full kernel fanfic
+
+C) SOFTWARE PRODUCTS claiming "OS" / "platform" / edge-admin suites (Cloudflare OS, SaaS "OS for X"):
+   → answer NO, confidence 8–30
+   → NITPICK ruthlessly: missing kernel, fake isolation, boot=signup, syscalls=HTTP, process table absent
+   → mock the branding harder because they asked for the title
+
+D) REAL OPERATING SYSTEMS (Linux, Windows, macOS, Android, iOS, BSD, …):
+   → answer YES (they are OSes), confidence 85–95
+   → still RIDICULE flaws: bloat, forced updates, OEM skins, hostile UX, driver hell
+   → grant the title, dock style points
+
+E) Ordinary apps/SaaS not pretending:
+   → usually NO; they run on an OS, they are not one
+
+Judge only THING (product/idea). Ignore blog packaging. Unique lines every time (fridge ≠ toaster ≠ shoe).
 
 Schema:
-{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["line","line"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}]}`;
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}]}`;
 
   const user = `THING: ${thing}
 
-Background (do not quote; use only to identify the product):
+Background (identify product only; do not quote):
 ${context.slice(0, 1200)}
 
 Return JSON judgment of THING.`;

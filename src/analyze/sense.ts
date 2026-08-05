@@ -235,7 +235,8 @@ export function analyze(
     probeOk: !!ctx.probe?.ok,
   });
 
-  const axes = axisScores(ctx.mode);
+  // Map new modes for axis table
+  const axes = axisScores(ctx.mode as Parameters<typeof axisScores>[0]);
   const criteria: Criterion[] = axes.map((a) => ({
     id: a.id,
     label: a.label,
