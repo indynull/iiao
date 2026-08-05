@@ -1,10 +1,6 @@
 import { analyze } from "./analyze/engine";
 import type { Analysis } from "./analyze/types";
 import { navigate, parseLocation, reportPath } from "./routes";
-import type { IiaoTree } from "./viz/tree";
-import type { IiaoRadar } from "./viz/radar";
-import type { IiaoBars } from "./viz/bars";
-import type { IiaoStats } from "./viz/stats";
 
 const EXAMPLES = [
   "a shoe",
@@ -159,14 +155,10 @@ function reportView(
   const answer = a.verdict;
   const lead = a.subtitle;
   const rest = (a.roast ?? []).filter((l) => l && l !== lead);
-  const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 6);
   const thing = meta?.thing || a.stamp || a.subject;
   const showSource = thing !== a.subject;
-  const hasRadar = (a.radar?.length ?? 0) >= 3;
-  const hasTree = Boolean(a.tree?.children?.length);
-  const hasSignals = (a.signalStats?.length ?? 0) > 0;
-  const hasBars = notes.length > 0;
 
+  // Joke only: verdict + roast + remediation. No lab tables.
   return shell(`
     <main class="stage stage--result">
       <article class="verdict-card">
@@ -197,50 +189,6 @@ function reportView(
       }
 
       ${roadmapSection(a)}
-
-      ${
-        hasTree || hasRadar
-          ? `<section class="section">
-        <h2 class="section__label">How we got here</h2>
-        <div class="viz-grid">
-          ${
-            hasTree
-              ? `<div class="viz-panel viz-panel--tree">
-            <h3 class="viz-panel__h">Decision path</h3>
-            <iiao-tree id="viz-tree"></iiao-tree>
-          </div>`
-              : ""
-          }
-          ${
-            hasRadar
-              ? `<div class="viz-panel viz-panel--radar">
-            <h3 class="viz-panel__h">OS-ness radar</h3>
-            <iiao-radar id="viz-radar"></iiao-radar>
-          </div>`
-              : ""
-          }
-        </div>
-      </section>`
-          : ""
-      }
-
-      ${
-        hasBars
-          ? `<section class="section">
-        <h2 class="section__label">Systems notes</h2>
-        <iiao-bars id="viz-bars"></iiao-bars>
-      </section>`
-          : ""
-      }
-
-      ${
-        hasSignals
-          ? `<section class="section">
-        <h2 class="section__label">Evidence desk</h2>
-        <iiao-stats id="viz-stats"></iiao-stats>
-      </section>`
-          : ""
-      }
 
       <div class="row">
         <button type="button" class="btn" id="btn-copy">Share</button>
@@ -345,23 +293,6 @@ function bindHome(root: HTMLElement) {
 }
 
 function bindReport(root: HTMLElement, a: Analysis) {
-  const tree = root.querySelector<IiaoTree>("#viz-tree");
-  if (tree) tree.tree = a.tree;
-
-  const radar = root.querySelector<IiaoRadar>("#viz-radar");
-  if (radar) radar.data = a.radar ?? [];
-
-  const bars = root.querySelector<IiaoBars>("#viz-bars");
-  if (bars) bars.items = a.criteria ?? [];
-
-  const stats = root.querySelector<IiaoStats>("#viz-stats");
-  if (stats) {
-    stats.data = {
-      signals: a.signalStats ?? [],
-      steps: a.confidenceSteps ?? [],
-    };
-  }
-
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
     const body = [a.verdict, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
