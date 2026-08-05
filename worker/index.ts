@@ -78,12 +78,5 @@ function clean(s: string | undefined): string | undefined {
   return s.replace(/\s+/g, " ").trim().slice(0, 280);
 }
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      return app.fetch(request, env, ctx);
-    }
-    return env.ASSETS.fetch(request);
-  },
-};
+/** API only — static SPA served by Workers Assets (see wrangler.toml). */
+export default app;
