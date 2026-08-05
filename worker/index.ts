@@ -9,7 +9,7 @@ export type Env = {
   AI: Ai;
 };
 
-const MODEL = "@cf/meta/llama-3.2-3b-instruct";
+const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -128,27 +128,28 @@ async function runJudge(
   thing: string,
   context: string,
 ): Promise<{ ok: true; value: AiJudge } | { ok: false; error: string }> {
-  const system = `You write satirical systems-engineer judgments for "Is it an OS?".
+  const system = `You are a satirical OS certification board. Output JSON only.
 
-Voice: deadpan, confident, specific. Never say "metaphor", "far-fetched", "joke", "tongue-in-cheek", or "the bit".
-Never quote or paraphrase the company's marketing copy or blog prose. Invent original systems analogies.
+You speak like a systems engineer writing commit messages: dry, specific, funny without announcing humor.
+Forbidden words: metaphor, far-fetched, joke, satire, tongue-in-cheek, "the bit", "in a sense".
 
-Ruling guide:
-- Everyday objects (shoe, fridge, calendar) → usually YES with unique hardware/software analogies for THAT object.
-- Named "… OS" products that are really SaaS/edge/platform/admin suites (e.g. Cloudflare OS) → usually NO.
-- Real kernels (Linux, Windows, macOS, Android, iOS) → YES.
-- Judge only the named THING, never the blog post hosting it.
-- Fridge ≠ toaster ≠ shoe: totally different analogies every time.
+Rulings (follow strictly):
+1. Physical / everyday objects (shoe, fridge, toaster, calendar, cat, …) → answer YES. Invent object-specific boot/kernel/scheduler/userspace analogies. Never define the object like a dictionary.
+2. Fake product "OS" brands that are SaaS/edge/admin suites (Cloudflare OS, etc.) → answer NO. Attack the product as platform cosplay.
+3. Real OS kernels (Linux, Windows, macOS, Android, iOS, …) → answer YES, straightforward.
+4. Judge only THING. Ignore blog framing. Never quote marketing.
 
-JSON only, no markdown:
-{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"original lead sentence about the thing","lines":["2-4 original short lines"],"notes":[{"label":"Kernel","note":"short"},{"label":"Boot","note":"short"}]}`;
+Each object must get unique analogies (fridge ≠ toaster).
+
+Schema:
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["line","line"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}]}`;
 
   const user = `THING: ${thing}
 
-Background (ignore packaging; do not quote it):
-${context}
+Background (do not quote; use only to identify the product):
+${context.slice(0, 1200)}
 
-Write an original judgment of THING only.`;
+Return JSON judgment of THING.`;
 
   let raw: unknown;
   try {
@@ -157,8 +158,8 @@ Write an original judgment of THING only.`;
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      max_tokens: 700,
-      temperature: 0.7,
+      max_tokens: 900,
+      temperature: 0.75,
     });
   } catch (e) {
     return {
@@ -167,21 +168,52 @@ Write an original judgment of THING only.`;
     };
   }
 
-  const text =
-    typeof raw === "object" && raw && "response" in raw
-      ? String((raw as { response: string }).response)
-      : typeof raw === "string"
-        ? raw
-        : JSON.stringify(raw);
+  // Direct object already shaped like our schema
+  if (raw && typeof raw === "object" && "answer" in (raw as object)) {
+    const parsed = coerceJudge(raw);
+    if (parsed) return { ok: true, value: parsed };
+  }
 
+  const text = extractModelText(raw);
   const parsed = parseAiJson(text);
   if (!parsed) {
     return {
       ok: false,
-      error: `parse failed: ${text.slice(0, 180)}`,
+      error: `parse failed: ${text.slice(0, 200)}`,
     };
   }
   return { ok: true, value: parsed };
+}
+
+function extractModelText(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (!raw || typeof raw !== "object") return String(raw ?? "");
+  const o = raw as Record<string, unknown>;
+  if (typeof o.response === "string") return o.response;
+  if (typeof o.response === "object" && o.response) {
+    const r = o.response as Record<string, unknown>;
+    if (typeof r.response === "string") return r.response;
+    return JSON.stringify(o.response);
+  }
+  if (typeof o.result === "string") return o.result;
+  if (typeof o.text === "string") return o.text;
+  if (typeof o.output === "string") return o.output;
+  // Tool-style / OpenAI-ish
+  const choices = o.choices;
+  if (Array.isArray(choices) && choices[0] && typeof choices[0] === "object") {
+    const msg = (choices[0] as { message?: { content?: string } }).message;
+    if (msg?.content) return msg.content;
+  }
+  return JSON.stringify(raw);
+}
+
+function coerceJudge(raw: unknown): AiJudge | null {
+  if (!raw || typeof raw !== "object") return null;
+  try {
+    return parseAiJson(JSON.stringify(raw));
+  } catch {
+    return null;
+  }
 }
 
 function parseAiJson(text: string): AiJudge | null {
@@ -190,39 +222,60 @@ function parseAiJson(text: string): AiJudge | null {
     .replace(/\s*```$/i, "")
     .trim();
   const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    const obj = JSON.parse(cleaned.slice(start, end + 1)) as Partial<AiJudge>;
-    const answer = String(obj.answer || "").toUpperCase();
-    if (answer !== "YES" && answer !== "NO" && answer !== "KINDA") return null;
-    const line = String(obj.line || "").trim();
-    if (!line) return null;
-    const lines = Array.isArray(obj.lines)
-      ? obj.lines.map((x) => String(x).trim()).filter(Boolean).slice(0, 5)
-      : [];
-    const confidence = Math.min(
-      97,
-      Math.max(5, Math.round(Number(obj.confidence) || 50)),
-    );
-    return {
-      answer: answer as AiJudge["answer"],
-      confidence,
-      line,
-      lines,
-      notes: Array.isArray(obj.notes)
-        ? obj.notes
-            .map((n) => ({
-              label: String((n as { label?: string }).label || "").trim(),
-              note: String((n as { note?: string }).note || "").trim(),
-            }))
-            .filter((n) => n.label && n.note)
-            .slice(0, 6)
-        : undefined,
-    };
-  } catch {
-    return null;
+  if (start < 0) return null;
+  let slice = cleaned.slice(start);
+  // Truncated model output: close open braces/brackets roughly
+  if (!slice.includes("}")) {
+    slice = slice + '"}]}';
   }
+  const end = slice.lastIndexOf("}");
+  if (end < 0) return null;
+  let jsonText = slice.slice(0, end + 1);
+  try {
+    return coerceJudgeObject(JSON.parse(jsonText));
+  } catch {
+    // Try fixing trailing commas / unclosed strings
+    jsonText = jsonText
+      .replace(/,\s*([}\]])/g, "$1")
+      .replace(/[\s\S]*$/, (m) => {
+        const opens = (m.match(/"/g) || []).length;
+        return opens % 2 === 1 ? m + '"' : m;
+      });
+    try {
+      return coerceJudgeObject(JSON.parse(jsonText));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function coerceJudgeObject(obj: Partial<AiJudge>): AiJudge | null {
+  const answer = String(obj.answer || "").toUpperCase();
+  if (answer !== "YES" && answer !== "NO" && answer !== "KINDA") return null;
+  const line = String(obj.line || "").trim();
+  if (!line) return null;
+  const lines = Array.isArray(obj.lines)
+    ? obj.lines.map((x) => String(x).trim()).filter(Boolean).slice(0, 5)
+    : [];
+  const confidence = Math.min(
+    97,
+    Math.max(5, Math.round(Number(obj.confidence) || 50)),
+  );
+  return {
+    answer: answer as AiJudge["answer"],
+    confidence,
+    line,
+    lines,
+    notes: Array.isArray(obj.notes)
+      ? obj.notes
+          .map((n) => ({
+            label: String((n as { label?: string }).label || "").trim(),
+            note: String((n as { note?: string }).note || "").trim(),
+          }))
+          .filter((n) => n.label && n.note)
+          .slice(0, 6)
+      : undefined,
+  };
 }
 
 function analysisFromAi(
