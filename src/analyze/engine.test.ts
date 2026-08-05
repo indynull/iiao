@@ -63,6 +63,7 @@ describe("analyze", () => {
     expect(a.confidence).toBe(b.confidence);
     expect(a.verdict).toBe(b.verdict);
     expect(a.criteria.map((c) => c.score)).toEqual(b.criteria.map((c) => c.score));
+    expect(a.signalStats).toEqual(b.signalStats);
   });
 
   it("scores kernel.org higher than a SaaS cloud marketing page", () => {
@@ -74,10 +75,24 @@ describe("analyze", () => {
     );
   });
 
-  it("mentions the probed title in findings", () => {
+  it("exposes real signal counts and confidence steps", () => {
     const a = analyze("https://kernel.org/", kernelProbe);
-    expect(a.findings.some((f) => f.includes("Linux Kernel"))).toBe(true);
-    expect(a.verdict.toLowerCase()).toMatch(/linux|kernel/);
+    expect(a.signalStats.find((s) => s.key === "kernel")?.count).toBe(5);
+    expect(a.confidenceSteps.length).toBeGreaterThan(0);
+    expect(a.confidenceSteps[0]!.label).toMatch(/weighted/i);
+    expect(a.criteria.every((c) => c.inputs.length > 0)).toBe(true);
+  });
+
+  it("decision tree encodes measured thresholds on the taken path", () => {
+    const a = analyze("https://kernel.org/", kernelProbe);
+    const walk = (n: typeof a.tree): string[] => {
+      const out = n.taken && n.detail ? [n.detail] : [];
+      for (const c of n.children ?? []) out.push(...walk(c));
+      return out;
+    };
+    const details = walk(a.tree).join(" | ");
+    expect(details).toMatch(/kernel=/i);
+    expect(details).toMatch(/confidence/i);
   });
 
   it("uses claim text when not a URL", () => {

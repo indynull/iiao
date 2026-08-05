@@ -5,9 +5,11 @@ import "./viz/gauge";
 import "./viz/radar";
 import "./viz/tree";
 import "./viz/bars";
+import "./viz/stats";
 import type { IiaoRadar } from "./viz/radar";
 import type { IiaoTree } from "./viz/tree";
 import type { IiaoBars } from "./viz/bars";
+import type { IiaoStats } from "./viz/stats";
 
 const EXAMPLES = [
   "https://www.cloudflare.com/",
@@ -178,40 +180,40 @@ function reportView(a: Analysis): string {
         </ul>
       </article>
 
+      <article class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">Measured stats</h2>
+        <iiao-stats id="stats"></iiao-stats>
+      </article>
+
       <div class="grid-2">
         <article class="card">
-          <h2 class="section-title">Decision tree</h2>
+          <h2 class="section-title">Decision tree (threshold tests)</h2>
           <iiao-tree id="tree"></iiao-tree>
         </article>
         <article class="card">
-          <h2 class="section-title">Axis radar</h2>
+          <h2 class="section-title">Axis radar (0–100 from formulas)</h2>
           <iiao-radar id="radar"></iiao-radar>
         </article>
       </div>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Criterion scores (from page signals)</h2>
+        <h2 class="section-title">Axis scores + inputs</h2>
         <iiao-bars id="bars"></iiao-bars>
       </article>
 
       <div class="grid-2">
         <article class="card">
-          <h2 class="section-title">Red flags</h2>
+          <h2 class="section-title">Derived red flags</h2>
           <ul class="listy listy--hot">
-            ${a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")}
+            ${
+              a.redFlags.length
+                ? a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")
+                : "<li>None triggered from measured thresholds.</li>"
+            }
           </ul>
         </article>
         <article class="card">
-          <h2 class="section-title">Lab notes</h2>
-          <ul class="listy listy--ice">
-            ${a.endorsements.map((f) => `<li>${esc(f)}</li>`).join("")}
-          </ul>
-        </article>
-      </div>
-
-      <div class="grid-2" style="margin-top:1rem">
-        <article class="card">
-          <h2 class="section-title">Probe timeline</h2>
+          <h2 class="section-title">Pipeline</h2>
           <div class="timeline">
             ${a.timeline.map((t) => `
               <div class="timeline__item">
@@ -219,9 +221,7 @@ function reportView(a: Analysis): string {
                 <div class="timeline__e">${esc(t.event)}</div>
               </div>`).join("")}
           </div>
-        </article>
-        <article class="card">
-          <h2 class="section-title">Probe residue</h2>
+          <h2 class="section-title" style="margin-top:1.1rem">Raw probe</h2>
           <pre class="probe-box">${esc(probeBits)}</pre>
           <h2 class="section-title" style="margin-top:1.1rem">Methodology</h2>
           <ul class="listy">
@@ -308,9 +308,15 @@ function bindReport(root: HTMLElement, a: Analysis) {
   const radar = root.querySelector<IiaoRadar>("#radar");
   const tree = root.querySelector<IiaoTree>("#tree");
   const bars = root.querySelector<IiaoBars>("#bars");
+  const stats = root.querySelector<IiaoStats>("#stats");
   if (radar) radar.data = a.radar;
   if (tree) tree.tree = a.tree;
   if (bars) bars.items = a.criteria;
+  if (stats)
+    stats.data = {
+      signals: a.signalStats ?? [],
+      steps: a.confidenceSteps ?? [],
+    };
 
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;

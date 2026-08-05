@@ -7,14 +7,31 @@ export type Criterion = {
   score: number;
   note: string;
   axis: string;
+  /** Raw inputs that produced this score (for the stats panel). */
+  inputs: string[];
 };
 
 export type TreeNode = {
   id: string;
   label: string;
+  /** Measured evidence, e.g. "kernel=13, os=0 · threshold ≥ 1" */
   detail?: string;
-  outcome?: "yes" | "no" | "chaos" | "leaf";
+  outcome?: "yes" | "no" | "question" | "leaf";
+  /** Whether this node lies on the evaluated path */
+  taken?: boolean;
   children?: TreeNode[];
+};
+
+export type SignalStat = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+export type ConfidenceStep = {
+  label: string;
+  delta: number;
+  total: number;
 };
 
 export type Analysis = {
@@ -30,9 +47,10 @@ export type Analysis = {
   criteria: Criterion[];
   tree: TreeNode;
   radar: { axis: string; value: number }[];
+  signalStats: SignalStat[];
+  confidenceSteps: ConfidenceStep[];
   timeline: { t: string; event: string }[];
   redFlags: string[];
-  endorsements: string[];
   methodology: string[];
   findings: string[];
   probe?: ProbeResult | null;
@@ -62,9 +80,7 @@ export type ProbeResult = {
   bytes?: number;
   host?: string;
   headings?: string[];
-  /** Lowercased visible-ish text sample for scoring */
   textSample?: string;
-  /** High-signal phrases pulled from page */
   phrases?: string[];
   signals?: ProbeSignals;
   error?: string;
