@@ -130,6 +130,28 @@ function answerClass(v: string): string {
   return "answer--kinda";
 }
 
+function roadmapSection(a: Analysis): string {
+  const r = a.roadmap;
+  if (!r?.steps?.length) return "";
+  return `<section class="section section--roadmap">
+    <h2 class="section__label">Path to full OS</h2>
+    <div class="roadmap">
+      <div class="roadmap__head">
+        <p class="roadmap__title">${esc(r.headline)}</p>
+        <p class="roadmap__gap"><span>+${r.gap}</span> pts to 100%</p>
+      </div>
+      <ol class="roadmap__steps">
+        ${r.steps
+          .map(
+            (s, i) =>
+              `<li style="--i:${i}"><span class="roadmap__n">${i + 1}</span><span class="roadmap__t">${esc(s)}</span></li>`,
+          )
+          .join("")}
+      </ol>
+    </div>
+  </section>`;
+}
+
 function reportView(
   a: Analysis,
   meta?: { thing?: string; engine?: string },
@@ -173,6 +195,8 @@ function reportView(
       </section>`
           : ""
       }
+
+      ${roadmapSection(a)}
 
       ${
         hasTree || hasRadar

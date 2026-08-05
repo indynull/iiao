@@ -2,8 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { resolveThing } from "../src/analyze/thing";
 import { analyze } from "../src/analyze/engine";
+import { classify } from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
-import type { Analysis, ProbeResult } from "../src/analyze/types";
+import { buildRoadmap } from "../src/analyze/roadmap";
+import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
 
 export type Env = {
   ASSETS: Fetcher;
@@ -283,6 +285,8 @@ type AiJudge = {
   line: string;
   lines: string[];
   notes?: { label: string; note: string }[];
+  /** Funny over-reaching steps to become a full OS (always when conf < 100) */
+  roadmap?: string[];
 };
 
 async function runJudge(
@@ -322,15 +326,23 @@ E) Ordinary apps/SaaS not pretending:
 
 Judge only THING (product/idea). Ignore blog packaging. Unique lines every time (fridge ≠ toaster ≠ shoe).
 
+ALWAYS include "roadmap": 3–5 short steps for how THING becomes a full-blown OS (confidence is never 100).
+Roadmap rules:
+- Same dry engineer voice; commit to wild OS analogies specific to THING
+- Over-reaching and concrete (kernel, boot, syscalls, process table, isolation, panic)
+- For YES at high %: close the last style/gap points (fix bloat, real panic path, etc.)
+- For NO/KINDA: absurd upgrade path from near-miss / cosplay → ring 0
+- Never say "metaphor", "joke", "satire", or "in real life"
+
 Schema:
-{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}]}`;
+{"answer":"YES"|"NO"|"KINDA","confidence":0-100,"line":"lead sentence","lines":["2-4 short lines"],"notes":[{"label":"Kernel","note":"..."},{"label":"Boot","note":"..."}],"roadmap":["step 1","step 2","step 3"]}`;
 
   const user = `THING: ${thing}
 
 Background (identify product only; do not quote):
 ${context.slice(0, 1200)}
 
-Return JSON judgment of THING.`;
+Return JSON judgment of THING, including a roadmap to full OS territory.`;
 
   let raw: unknown;
   try {
@@ -339,7 +351,7 @@ Return JSON judgment of THING.`;
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      max_tokens: 900,
+      max_tokens: 1100,
       temperature: 0.75,
     });
   } catch (e) {
@@ -442,6 +454,9 @@ function coerceJudgeObject(obj: Partial<AiJudge>): AiJudge | null {
     97,
     Math.max(5, Math.round(Number(obj.confidence) || 50)),
   );
+  const roadmap = Array.isArray(obj.roadmap)
+    ? obj.roadmap.map((x) => String(x).trim()).filter((s) => s.length > 6).slice(0, 5)
+    : undefined;
   return {
     answer: answer as AiJudge["answer"],
     confidence,
@@ -456,6 +471,7 @@ function coerceJudgeObject(obj: Partial<AiJudge>): AiJudge | null {
           .filter((n) => n.label && n.note)
           .slice(0, 6)
       : undefined,
+    roadmap: roadmap?.length ? roadmap : undefined,
   };
 }
 
@@ -542,8 +558,40 @@ function analysisFromAi(
     redFlags: j.lines.slice(0, 2),
     findings: roast,
     roast,
+    roadmap: buildRoadmap({
+      thing,
+      answer: j.answer,
+      confidence: j.confidence,
+      mode: classify({
+        subject: thing,
+        displayName: thing,
+        blob: `${thing} ${probe?.title ?? ""} ${probe?.description ?? ""}`.toLowerCase(),
+        kind: looksLikeUrl(originalInput) ? "url" : "claim",
+        host: probe?.host ?? null,
+        signals: probe?.signals ?? emptySignals(),
+        probeOk: !!probe?.ok,
+      }),
+      steps: j.roadmap,
+    }),
     methodology: [],
     probe,
+  };
+}
+
+function emptySignals(): ProbeSignals {
+  return {
+    os: 0,
+    kernel: 0,
+    hardware: 0,
+    schedule: 0,
+    platform: 0,
+    saas: 0,
+    browser: 0,
+    cloud: 0,
+    pricing: 0,
+    openSource: 0,
+    security: 0,
+    ai: 0,
   };
 }
 

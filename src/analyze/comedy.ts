@@ -29,6 +29,8 @@ export type JokeResult = {
   confidence: number;
   line: string;
   lines: string[];
+  /** Comedy mode used — helps roadmap generator */
+  mode: ComedyMode;
 };
 
 /** Things we certify as OSes with full systems fanfic. */
@@ -435,6 +437,7 @@ export function jokeFor(ctx: ComedyCtx): JokeResult {
     confidence: b.confidence,
     line: b.lead,
     lines: b.more,
+    mode,
   };
 }
 

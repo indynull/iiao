@@ -10,6 +10,7 @@ import {
 import { resolveThing } from "./thing";
 import { seedHex } from "./seed";
 import { buildJudgmentTree } from "./tree-build";
+import { buildRoadmap } from "./roadmap";
 import type {
   Analysis,
   Criterion,
@@ -238,6 +239,12 @@ export function analyze(
     redFlags: joke.lines.slice(0, 3),
     findings: roast,
     roast,
+    roadmap: buildRoadmap({
+      thing: resolved.thing,
+      answer: joke.answer,
+      confidence: joke.confidence,
+      mode: joke.mode,
+    }),
     methodology: [],
     probe: ctx.probe,
   };

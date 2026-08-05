@@ -73,6 +73,14 @@ describe("single-serving comedy", () => {
   it("is deterministic", () => {
     expect(analyze("my toaster").subtitle).toBe(analyze("my toaster").subtitle);
   });
+
+  it("offers a path to full OS when under 100%", () => {
+    const a = analyze("sunglasses");
+    expect(a.confidence).toBeLessThan(100);
+    expect(a.roadmap?.steps.length).toBeGreaterThanOrEqual(3);
+    expect(a.roadmap?.gap).toBe(100 - a.confidence);
+    expect(a.roadmap?.headline.toLowerCase()).toMatch(/os|ring/);
+  });
 });
 
 describe("permalink", () => {

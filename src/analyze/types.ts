@@ -55,6 +55,12 @@ export type Analysis = {
   findings: string[];
   /** Punchy monologue lines — the main comedy output */
   roast: string[];
+  /** Funny upgrade path when not a perfect (100%) OS */
+  roadmap?: {
+    gap: number;
+    headline: string;
+    steps: string[];
+  } | null;
   probe?: ProbeResult | null;
 };
 
