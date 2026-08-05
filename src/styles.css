@@ -481,6 +481,24 @@ body {
   animation: board-in 0.4s ease both;
 }
 
+/* Fast / cached answers: quieter theater */
+.load-board--fast .load-gate {
+  transition-duration: 0.45s;
+}
+
+.load-board--fast .load-bar__fill {
+  animation-duration: 0.9s;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+  width: 70%;
+  opacity: 0.85;
+}
+
+.load-board--fast .load-board__badge {
+  background: var(--muted);
+  animation: none;
+}
+
 @keyframes board-in {
   from {
     opacity: 0;

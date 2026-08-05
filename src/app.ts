@@ -217,10 +217,63 @@ type JudgeResponse = {
   error?: string;
 };
 
-async function runLoad(
+type JudgeOk = { analysis: Analysis; thing?: string; engine?: string };
+
+/** Same subject in this tab → skip the full board theater. */
+const judgeCache = new Map<string, JudgeOk>();
+
+const FAST_MS = 420;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => window.setTimeout(r, ms));
+}
+
+function setLoadPct(
+  pctEl: Element | null,
+  fillEl: SVGPathElement | null,
+  pct: number,
+) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  if (pctEl) pctEl.textContent = String(p);
+  if (fillEl) fillEl.style.strokeDashoffset = String(100 - p);
+}
+
+/** Brief calm beat when the answer is already in hand (cache / rules). */
+async function playFastLoad(root: HTMLElement): Promise<void> {
+  const board = root.querySelector(".load-board");
+  const badge = root.querySelector(".load-board__badge");
+  const thinkEl = root.querySelector("#think");
+  const hintEl = root.querySelector("#load-hint");
+  const pctEl = root.querySelector("#load-pct");
+  const fillEl = root.querySelector<SVGPathElement>("#load-gauge-fill");
+  const gates = [...root.querySelectorAll<HTMLElement>(".load-gate")];
+
+  board?.classList.add("load-board--fast");
+  if (badge) badge.textContent = "cached";
+  if (thinkEl) thinkEl.textContent = "already on file…";
+  if (hintEl) hintEl.textContent = "skipping the ceremony";
+  if (fillEl) {
+    fillEl.style.strokeDasharray = "100";
+    fillEl.style.transition = "stroke-dashoffset 0.55s ease";
+  }
+
+  // Light two gates, not the whole gauntlet
+  gates[0]?.classList.add("load-gate--on");
+  setLoadPct(pctEl, fillEl, 40);
+  await sleep(220);
+  gates[0]?.classList.add("load-gate--done");
+  gates[1]?.classList.add("load-gate--on");
+  setLoadPct(pctEl, fillEl, 88);
+  await sleep(280);
+  gates.forEach((g) => g.classList.add("load-gate--done", "load-gate--on"));
+  setLoadPct(pctEl, fillEl, 100);
+  await sleep(160);
+}
+
+async function playSlowLoad(
   root: HTMLElement,
-  subject: string,
-): Promise<{ analysis: Analysis; thing?: string; engine?: string }> {
+  fetchDone: Promise<JudgeOk | null>,
+): Promise<JudgeOk | null> {
   const thinkEl = root.querySelector("#think");
   const hintEl = root.querySelector("#load-hint");
   const pctEl = root.querySelector("#load-pct");
@@ -230,6 +283,13 @@ async function runLoad(
   let thinkI = 0;
   let gateI = 0;
   let pct = 0;
+  let result: JudgeOk | null = null;
+  let settled = false;
+
+  if (fillEl) {
+    fillEl.style.strokeDasharray = "100";
+    fillEl.style.strokeDashoffset = "100";
+  }
 
   const tickThink = window.setInterval(() => {
     thinkI = (thinkI + 1) % THINKS.length;
@@ -237,6 +297,7 @@ async function runLoad(
   }, 700);
 
   const tickBoard = window.setInterval(() => {
+    if (settled) return;
     if (gateI < gates.length) {
       gates[gateI]?.classList.add("load-gate--on");
       if (gateI > 0) gates[gateI - 1]?.classList.add("load-gate--done");
@@ -246,15 +307,22 @@ async function runLoad(
       gates.forEach((g) => g.classList.add("load-gate--done", "load-gate--on"));
     }
     pct = Math.min(92, pct + 11 + Math.floor(Math.random() * 8));
-    if (pctEl) pctEl.textContent = String(pct);
-    if (fillEl) fillEl.style.strokeDashoffset = String(100 - pct);
+    setLoadPct(pctEl, fillEl, pct);
   }, 480);
 
-  if (fillEl) {
-    fillEl.style.strokeDasharray = "100";
-    fillEl.style.strokeDashoffset = "100";
+  try {
+    result = await fetchDone;
+  } finally {
+    settled = true;
+    window.clearInterval(tickThink);
+    window.clearInterval(tickBoard);
+    gates.forEach((g) => g.classList.add("load-gate--done", "load-gate--on"));
+    setLoadPct(pctEl, fillEl, 100);
   }
+  return result;
+}
 
+async function fetchJudge(subject: string): Promise<JudgeOk | null> {
   try {
     const res = await fetch("/api/judge", {
       method: "POST",
@@ -271,12 +339,48 @@ async function runLoad(
     }
   } catch {
     /* fall through */
-  } finally {
-    window.clearInterval(tickThink);
-    window.clearInterval(tickBoard);
+  }
+  return null;
+}
+
+async function runLoad(
+  root: HTMLElement,
+  subject: string,
+): Promise<JudgeOk> {
+  const key = subject.trim().toLowerCase();
+  const cached = judgeCache.get(key);
+  if (cached) {
+    await playFastLoad(root);
+    return cached;
   }
 
-  return { analysis: analyze(subject, null), engine: "rules" };
+  const started = performance.now();
+  const fetchDone = fetchJudge(subject);
+  // Race a short timer: if answer is back already, don't drag the theater
+  const quick = await Promise.race([
+    fetchDone.then((r) => ({ kind: "done" as const, r, ms: performance.now() - started })),
+    sleep(FAST_MS).then(() => ({ kind: "slow" as const })),
+  ]);
+
+  let result: JudgeOk | null;
+  if (quick.kind === "done") {
+    // Rules / warm edge — calm short beat instead of full gate walk
+    result = quick.r;
+    if (result) await playFastLoad(root);
+  } else {
+    result = await playSlowLoad(root, fetchDone);
+  }
+
+  if (result) {
+    judgeCache.set(key, result);
+    return result;
+  }
+  const fallback: JudgeOk = {
+    analysis: analyze(subject, null),
+    engine: "rules",
+  };
+  judgeCache.set(key, fallback);
+  return fallback;
 }
 
 function bindHome(root: HTMLElement) {
