@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { resolveThing } from "../src/analyze/thing";
 import { analyze } from "../src/analyze/engine";
-import { classify } from "../src/analyze/comedy";
+import { classify, preferRulesComedy } from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
 import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
@@ -130,17 +130,21 @@ app.post("/api/judge", async (c) => {
   let engine: "workers-ai" | "rules" = "rules";
   let aiError: string | undefined;
 
+  // People packs are handcrafted — models spit mad-lib “OS for the country” lines
+  const skipAi = preferRulesComedy(resolved.thing) || preferRulesComedy(subject);
+
   try {
-    if (!c.env.AI) {
+    if (skipAi) {
+      aiError = "rules pack";
+    } else if (!c.env.AI) {
       aiError = "AI binding missing";
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
-      if (judged.ok && !isDictionaryJoke(judged.value)) {
+      if (judged.ok && !isBadComedy(judged.value)) {
         analysis = analysisFromAi(subject, resolved.thing, judged.value, probe);
         engine = "workers-ai";
       } else if (judged.ok) {
-        // Model explained instead of joking — use rules comedy
-        aiError = "dictionary joke rejected";
+        aiError = "flat joke rejected";
       } else {
         aiError = judged.error;
       }
@@ -308,11 +312,12 @@ A) MACHINE-ISH EVERYDAY OBJECTS that "run" something (toaster, fridge, shoe, cal
    → commit to wild OS analogies unique to THAT object (boot, kernel, scheduler, userspace, syscalls)
    → never define it like a dictionary
 
-A2) PEOPLE / PUBLIC FIGURES / "my boss" (Biden, Musk, celebrities, relatives…):
+A2) PEOPLE / PUBLIC FIGURES:
    → answer YES, confidence 82–94
-   → they ARE an OS for a nation / company / household — teleprompter/kernel, cabinet/process table, speeches/syscalls, midterms/force updates
-   → NEVER write "X is a politician/person, not an operating system" or "no matter how many…"
-   → NEVER explain what a person is. Certify, then roast the process model
+   → joke-first leads: action, failure mode, or priority — not a definition
+   → BANNED TEMPLATE: "X is an operating system for the United States/country, with Y serving as his kernel and Z as syscall"
+   → BANNED: "teleprompter as kernel" unless the person is actually teleprompter-coded
+   → Specific roast of THAT person's process model (loud scheduler, loyalty table, all-caps panic, etc.)
 
 B) ACCESSORIES / FILTERS (sunglasses, umbrella, case, hat, screen protector, …):
    → answer NO or KINDA, confidence 15–40
@@ -619,8 +624,8 @@ function confHash(s: string): number {
   return h;
 }
 
-/** Model fell back to explaining reality instead of doing the bit. */
-function isDictionaryJoke(j: AiJudge): boolean {
+/** Model explained reality or used the dead mad-lib template. */
+function isBadComedy(j: AiJudge): boolean {
   const t = [j.line, ...(j.lines || [])].join(" ").toLowerCase();
   return (
     /\bnot an operating system\b/.test(t) ||
@@ -630,7 +635,12 @@ function isDictionaryJoke(j: AiJudge): boolean {
     /\bno matter how (many|much)\b/.test(t) ||
     /\bdon'?t let that fool you\b/.test(t) ||
     /\bonly if you consider\b/.test(t) ||
-    /\bjust a (politician|person|human|app)\b/.test(t)
+    /\bjust a (politician|person|human|app)\b/.test(t) ||
+    // “X is an operating system for the United States, with Y serving as his kernel…”
+    /\bis an operating system for\b/.test(t) ||
+    /\bserving as (his|her|their|its) kernel\b/.test(t) ||
+    /\bwith a \w[\w\s]{0,40} as (his|her|their|its) kernel\b/.test(t) ||
+    /\bas (his|her|their|its) syscall\b/.test(t)
   );
 }
 

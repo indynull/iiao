@@ -94,8 +94,20 @@ describe("single-serving comedy", () => {
     expect(a.verdict).toBe("YES");
     expect(a.confidence).toBeGreaterThan(80);
     const blob = [a.subtitle, ...(a.roast ?? [])].join(" ").toLowerCase();
-    expect(blob).not.toMatch(/not an operating system|politician, not/);
-    expect(blob).toMatch(/kernel|syscall|boot|scheduler|process|ring|panic|userspace|teleprompter|cabinet|update/);
+    expect(blob).not.toMatch(
+      /not an operating system|politician, not|is an operating system for/,
+    );
+    expect(blob).toMatch(
+      /kernel|syscall|boot|scheduler|process|ring|panic|userspace|teleprompter|cabinet|update|committee/,
+    );
+  });
+
+  it("roasts trump without the country-OS mad-lib", () => {
+    const a = analyze("donald trump");
+    expect(a.verdict).toBe("YES");
+    const lead = a.subtitle.toLowerCase();
+    expect(lead).not.toMatch(/is an operating system for|serving as (his|her) kernel/);
+    expect(lead).toMatch(/panic|ring 0|scheduler|podium|caps|loudest|guest/);
   });
 });
 

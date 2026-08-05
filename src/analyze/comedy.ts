@@ -41,6 +41,11 @@ const ABSURD_OS_RE =
 const PERSON_RE =
   /\b(biden|trump|obama|harris|walz|vance|musk|elon|zuck(erberg)?|putin|macron|modi|sunak|trudeau|the president|president of|my (mom|dad|boss|wife|husband|girlfriend|boyfriend|teacher|manager|roommate)|your (mom|dad|boss))\b/i;
 
+/** Prefer handcrafted packs — models write “X is an OS for the country with Y as kernel.” */
+export function preferRulesComedy(subject: string): boolean {
+  return PERSON_RE.test(subject);
+}
+
 /** Witty near-misses: not the OS, but a subsystem role. */
 const ACCESSORY_RE =
   /\b(sunglasses|glasses|goggles|umbrella|hat|cap|scarf|glove|gloves|mask|helmet|belt|watch band|earring|necklace|ring|bracelet|filter|screen protector|case|cover|sticker|badge|pin|lanyard)\b/i;
@@ -229,7 +234,10 @@ function absurdOsBundle(name: string, subject: string, sp: number): Bundle {
   };
 }
 
-/** Public figures & “my boss” energy — certify, then roast the process model. */
+/**
+ * Public figures — joke first, never “X is an operating system for the country
+ * with teleprompter as kernel” mad-libs.
+ */
 function personBundle(
   nm: string,
   s: string,
@@ -241,14 +249,15 @@ function personBundle(
       answer: "YES",
       confidence: Math.round(86 + sp * 6),
       lead: pick(sp, [
-        `${nm} is an OS: boots slowly, schedules the free world, and still loses track of open files.`,
-        `${nm} runs a national kernel with a teleprompter in ring 0 and Congress as thrashing userspace.`,
+        `Boots like a Sunday committee: slow, public, and somehow still in charge.`,
+        `Teleprompter holds ring 0. When it blanks, so does foreign policy.`,
+        `Schedules the free world and still can't find the open file named "train".`,
       ]),
       more: [
-        "Executive orders are force-pushed updates. Rollback is a midterm.",
-        "Handshake is a blocking syscall. Ice cream is a soft IRQ.",
-        "The cabinet is a process table that never quite reaps.",
-        "Uptime measured in four-year epochs. Panic is bipartisan.",
+        "Handshake is a blocking syscall. Ice cream is a soft IRQ nobody masks.",
+        "Cabinet processes thrash; half never get reaped.",
+        "Executive orders: force-push. Midterms: the only rollback that works.",
+        "Uptime sold in four-year epochs. Panic is bipartisan and televised.",
       ],
     };
   }
@@ -256,12 +265,16 @@ function personBundle(
     return {
       answer: "YES",
       confidence: Math.round(87 + sp * 6),
-      lead: `${nm} is an OS that posts its own kernel panic to the timeline in all caps.`,
+      lead: pick(sp, [
+        `Posts its own kernel panic in all caps, then blames the previous package maintainer.`,
+        `Ring 0 is the podium. Everyone else is a guest account pending block.`,
+        `Scheduler: whoever is loudest on the bus gets the CPU. Forever.`,
+      ]),
       more: [
-        "Scheduler priority: whoever is loudest on the bus.",
-        "Truth is optional; the process table is loyalty.",
-        "Forced updates arrive as truth social commits with no code review.",
-        "We grant the title. Stability is someone else's department.",
+        "Twitter / Truth is the syscall table — write-only, no fsync, no shame.",
+        "Process table sorted by loyalty, not PID. Reap the disloyal.",
+        "Forced updates: late-night commits with zero code review and max media.",
+        "Title granted. Stability was never in the requirements.txt.",
       ],
     };
   }
@@ -269,12 +282,15 @@ function personBundle(
     return {
       answer: "YES",
       confidence: Math.round(85 + sp * 7),
-      lead: `${nm} is an OS that renames the root account at 3am and calls it a feature.`,
+      lead: pick(sp, [
+        `Renames root at 3am, ships it, and calls the outage a vibe.`,
+        `Boot is a tweet. So is shutdown. Init is just engagement.`,
+      ]),
       more: [
-        "Boot is a tweet. Shutdown is also a tweet.",
-        "Process isolation: optional. Memes: mandatory.",
-        "ioctl(FIRE_HALF) — accepted without confirmation.",
-        "Title granted. On-call is the entire userbase.",
+        "ioctl(FIRE_HALF) — no confirmation dialog. Ever.",
+        "Process isolation optional. Main character energy mandatory.",
+        "On-call is the entire userbase. Pager is the timeline.",
+        "We certify the chaos kernel. Man pages arrive as memes.",
       ],
     };
   }
@@ -282,12 +298,15 @@ function personBundle(
     return {
       answer: "YES",
       confidence: Math.round(84 + sp * 7),
-      lead: `${nm} is an OS whose primary syscall is harvest_attention().`,
+      lead: pick(sp, [
+        `Primary syscall is harvest_attention(). Everything else is UI chrome.`,
+        `Looks human in userspace. Kernel is an ad auction with a jawline.`,
+      ]),
       more: [
-        "Userspace thinks it's social. Kernel is an ad auction.",
-        "Privacy settings are a maze with no exit node.",
-        "Metaverse was a failed userspace that still bills for rent.",
-        "We certify the substrate. We mock the UI of being a person.",
+        "Privacy settings: a maze with no exit node and a cheerful font.",
+        "Metaverse was a failed mount that still charges rent.",
+        "Friends are processes; half are zombies serving ads.",
+        "Title granted. Empathy was left in the changelog as TODO.",
       ],
     };
   }
@@ -295,12 +314,15 @@ function personBundle(
     return {
       answer: "YES",
       confidence: conf,
-      lead: `${nm} is a hostile scheduler with calendar privileges and no man page.`,
+      lead: pick(sp, [
+        `Hostile scheduler with calendar root and no man page.`,
+        `Your sprint is its batch job. Priority: whoever yelled last.`,
+      ]),
       more: [
-        "Your tasks are processes. Priority is whoever yelled last.",
         "1:1s are blocking syscalls. Slack is softIRQ spam.",
-        "Performance review is fsck with worse docs.",
-        "You are userspace. Act accordingly.",
+        "Performance review is fsck written by someone who hates docs.",
+        "You are userspace. Act like it.",
+        "No status page — only status meetings.",
       ],
     };
   }
@@ -310,14 +332,14 @@ function personBundle(
     answer: "YES",
     confidence: Math.round(84 + sp * 8),
     lead: pick(sp, [
-      `${nm} is an OS for a small, opinionated machine called a life.`,
-      `${nm} schedules other humans, loses file handles, and still claims uptime.`,
+      `Schedules other humans, loses file handles, still claims five-nines of charisma.`,
+      `Boot is coffee. Panic is the group chat. Recovery is a nap that never comes.`,
     ]),
     more: [
-      "Boot is coffee. Panic is a group chat. Recovery is a nap.",
-      "Process table: obligations. Zombies: unresolved emails.",
+      "Process table: obligations. Zombies: unread emails with teeth.",
       "Syscalls include sigh(), ghost(), and overcommit().",
-      "No status page. Plenty of status meetings.",
+      "No status page. Plenty of status.",
+      "We certify the household kernel. Charm negotiable.",
     ],
   };
 }
