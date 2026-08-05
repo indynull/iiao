@@ -1,11 +1,22 @@
 /**
- * Content-driven OS-ness sensing.
- * Scores, stats, and decision tree are derived only from probe/claim data.
+ * Content + comedy OS-ness sensing.
+ * Absurd things (shoes, toasters) score high with far-fetched analogies.
+ * Marketing “platforms” / Cloudflare-OS energy score low.
  */
+import {
+  absurdAxisNotes,
+  absurdRoast,
+  analogiesFor,
+  classify,
+  confidenceFor,
+  genericRoast,
+  marketingRoast,
+  realOsRoast,
+  type ComedyMode,
+} from "./comedy";
 import { seedHex } from "./seed";
 import type {
   Analysis,
-  ConfidenceStep,
   Criterion,
   ProbeResult,
   ProbeSignals,
@@ -23,6 +34,7 @@ export type SenseCtx = {
   probe: ProbeResult | null;
   signals: ProbeSignals;
   quotes: string[];
+  mode: ComedyMode;
 };
 
 const EMPTY_SIGNALS: ProbeSignals = {
@@ -113,13 +125,14 @@ export function buildContext(
   }
 
   const displayName =
+    (kind === "claim" ? shortQuote(subject, 48) : null) ||
     probe?.title?.split(/[|\-–—]/)[0]?.trim() ||
     host ||
     shortQuote(subject, 48);
 
-  return {
+  const partial = {
     subject,
-    kind: kind === "empty" ? "claim" : kind,
+    kind: (kind === "empty" ? "claim" : kind) as SubjectKind,
     host,
     displayName,
     blob,
@@ -127,6 +140,18 @@ export function buildContext(
     signals: base,
     quotes: [...new Set(quotes.map((x) => shortQuote(x, 100)))].slice(0, 8),
   };
+
+  const mode = classify({
+    subject: partial.subject,
+    displayName: partial.displayName,
+    blob: partial.blob,
+    kind: partial.kind,
+    host: partial.host,
+    signals: partial.signals,
+    probeOk: !!probe?.ok,
+  });
+
+  return { ...partial, mode };
 }
 
 function localSignals(blob: string): ProbeSignals {
@@ -379,6 +404,65 @@ const AXES: AxisDef[] = [
 ];
 
 function buildCriteria(ctx: SenseCtx): Criterion[] {
+  if (ctx.mode === "absurd") {
+    const a = analogiesFor({
+      subject: ctx.subject,
+      displayName: ctx.displayName,
+      blob: ctx.blob,
+      kind: ctx.kind,
+      host: ctx.host,
+      signals: ctx.signals,
+      probeOk: !!ctx.probe?.ok,
+    });
+    const notes = absurdAxisNotes(a);
+    // All axes high — far-fetched but committed
+    const scores: Record<string, number> = {
+      kernel: 0.88,
+      schedule: 0.91,
+      hardware: 0.86,
+      marketing: 0.15,
+      syscall: 0.84,
+      isolation: 0.79,
+      boot: 0.93,
+      posix: 0.77,
+    };
+    return AXES.map((ax) => ({
+      id: ax.id,
+      label: ax.label,
+      weight: ax.weight,
+      score: scores[ax.id] ?? 0.8,
+      note: notes[ax.id] ?? a.kernel,
+      axis: ax.label,
+      inputs: ["far-fetched analogy (not a word-count)"],
+    }));
+  }
+
+  if (ctx.mode === "marketing") {
+    // Depress OS axes, inflate marketing
+    return AXES.map((ax) => {
+      const { score, inputs } = ax.score(ctx);
+      let s = score;
+      if (ax.id === "kernel" || ax.id === "hardware" || ax.id === "posix")
+        s = Math.min(s, 0.22);
+      if (ax.id === "marketing") s = Math.max(s, 0.75);
+      if (ax.id === "boot") s = Math.min(Math.max(s, 0.45), 0.55); // signup flow
+      return {
+        id: ax.id,
+        label: ax.label,
+        weight: ax.weight,
+        score: s,
+        note:
+          ax.id === "kernel"
+            ? "No kernel. Only hero gradients and a “Get started” button."
+            : ax.id === "marketing"
+              ? "Slogan density could power a small city."
+              : ax.note(ctx, s),
+        axis: ax.label,
+        inputs,
+      };
+    });
+  }
+
   return AXES.map((a) => {
     const { score, inputs } = a.score(ctx);
     return {
@@ -413,290 +497,144 @@ function signalStats(ctx: SenseCtx): SignalStat[] {
   ).map(([key, label, count]) => ({ key, label, count }));
 }
 
-/** Transparent confidence: weighted mean of axes + listed adjustments. */
-function confidenceFrom(
-  criteria: Criterion[],
-  ctx: SenseCtx,
-): { confidence: number; steps: ConfidenceStep[] } {
-  let num = 0;
-  let den = 0;
-  for (const c of criteria) {
-    num += c.score * c.weight;
-    den += c.weight;
-  }
-  const base = den ? (num / den) * 100 : 0;
-  const steps: ConfidenceStep[] = [
-    { label: "Average of the vibe axes", delta: base, total: base },
-  ];
-  let total = base;
-
-  const adjust = (label: string, delta: number) => {
-    if (delta === 0) return;
-    total += delta;
-    steps.push({ label, delta, total });
+function comedyBag(ctx: SenseCtx) {
+  return {
+    subject: ctx.subject,
+    displayName: ctx.displayName,
+    blob: ctx.blob,
+    kind: ctx.kind,
+    host: ctx.host,
+    signals: ctx.signals,
+    probeOk: !!ctx.probe?.ok,
   };
-
-  if (/\bkernel\.org\b|\blinux\.org\b|\bfreedesktop\b/i.test(ctx.blob)) {
-    adjust("It's literally kernel.org energy (+25)", 25);
-  }
-  if (/\boperating system\b/i.test(ctx.blob) && ctx.signals.kernel > 0) {
-    adjust("Said “operating system” and meant it (+12)", 12);
-  }
-  if (ctx.signals.os > 0 && ctx.signals.saas > 3 && ctx.signals.kernel === 0) {
-    adjust("Said OS on a SaaS page (+8, branding tax rebate)", 8);
-  }
-  if (ctx.signals.saas > 4 && ctx.signals.kernel === 0 && ctx.signals.os === 0) {
-    adjust("Pure SaaS, zero kernel (−12)", -12);
-  }
-  if (ctx.probe && !ctx.probe.ok && ctx.kind === "url") {
-    adjust("Page wouldn't load, we guessed (−5)", -5);
-  }
-  if (/cloudflare/i.test(ctx.blob) && ctx.signals.os > 0) {
-    const floor = 55;
-    if (total < floor)
-      adjust(`Cloudflare said OS so floor is ${floor}%`, floor - total);
-  }
-  if (/\bemacs\b/i.test(ctx.blob)) {
-    const floor = 62;
-    if (total < floor)
-      adjust(`Emacs diplomatic immunity → ${floor}%`, floor - total);
-  }
-
-  const confidence = Math.round(Math.min(96, Math.max(4, total)));
-  if (confidence !== Math.round(total)) {
-    steps.push({
-      label: `Reality clamp → ${confidence}%`,
-      delta: confidence - total,
-      total: confidence,
-    });
-  }
-  return { confidence, steps };
 }
 
-function verdictFor(
-  ctx: SenseCtx,
-  confidence: number,
-  criteria: Criterion[],
-): string {
-  const name = ctx.displayName;
-  const top = [...criteria].sort((a, b) => b.score - a.score)[0];
-  const low = [...criteria].sort((a, b) => a.score - b.score)[0];
+function confidenceFrom(ctx: SenseCtx) {
+  return confidenceFor(ctx.mode, comedyBag(ctx));
+}
 
-  if (
-    /cloudflare/i.test(ctx.blob) &&
-    (ctx.signals.os > 0 || /workers|edge|cdn/i.test(ctx.blob))
-  ) {
-    return `${name} is an edge platform that said the quiet part (“OS”) out loud`;
+function verdictFor(ctx: SenseCtx, confidence: number): string {
+  const name = ctx.displayName;
+  if (ctx.mode === "absurd") {
+    return `${name} is an operating system (we can explain)`;
+  }
+  if (ctx.mode === "marketing") {
+    return `${name} is a landing page with main-character syndrome`;
+  }
+  if (ctx.mode === "real_os") {
+    return `${name} is, unfortunately, a real OS`;
   }
   if (/\bemacs\b/i.test(ctx.blob)) {
-    return `${name}: OS if you live there, editor if you have to file taxes`;
+    return `${name}: OS if you live there, editor on your tax forms`;
   }
-  if (
-    confidence >= 72 &&
-    (ctx.signals.kernel > 0 || ctx.signals.openSource > 2)
-  ) {
-    return `${name} might actually be an OS — awkward for the bit`;
-  }
-  if (confidence >= 55 && ctx.signals.os > 0) {
-    return `${name} wants the OS title; ${top?.label ?? "vibes"} is doing PR`;
-  }
-  if (ctx.signals.saas > 3 && ctx.signals.kernel === 0) {
-    return `${name} is SaaS in a trench coat labeled “platform”`;
-  }
-  if (ctx.signals.browser > 2 && confidence < 50) {
-    return `${name}: a website with ambition, not a bootloader`;
-  }
-  if (ctx.signals.cloud > 2 && ctx.signals.hardware < 1) {
-    return `${name} lives in the cloud and has never met a CPU`;
-  }
-  if (confidence < 30) {
-    return `${name} is ${confidence}% OS — mostly ${low?.label ?? "not"}`;
-  }
-  return `${name} clocks in at ${confidence}% operating-system-shaped`;
+  return confidence >= 55
+    ? `${name} is OS-shaped if you squint with love`
+    : `${name} is ${confidence}% OS — mostly vibes`;
 }
 
 function subtitleFor(ctx: SenseCtx, confidence: number): string {
-  if (confidence >= 75) {
-    return `We're not saying it is an OS. We're saying ${confidence}% of the evidence is embarrassing.`;
+  if (ctx.mode === "absurd") {
+    return `Far-fetched? Yes. Wrong? No. ${confidence}% OS by constructive analogy.`;
   }
-  if (confidence >= 50) {
-    return `Schrodinger's OS: ${confidence}% chance it's real, 100% chance the naming was aggressive.`;
+  if (ctx.mode === "marketing") {
+    return `Said “platform” a lot. Still not a kernel. ${confidence}% and that's generous.`;
   }
-  if (confidence >= 30) {
-    return `Could be an OS if you redefine “OS” as “thing with a website.” Please don't.`;
+  if (ctx.mode === "real_os") {
+    return `No bit. No stretch. Just a kernel. ${confidence}%.`;
   }
-  return `This is about as much OS as a toaster is a chef. ${confidence}% on a good day.`;
+  return `Committee split. ${confidence}% after poetry was admitted into evidence.`;
 }
 
-function stampFor(confidence: number, ctx: SenseCtx): string {
-  if (!ctx.probe?.ok && ctx.kind === "url") return "GHOSTED BY HTTP";
-  if (confidence >= 75) return "SUSPICIOUSLY OS";
-  if (confidence >= 55) return "IT'S COMPLICATED";
-  if (confidence >= 35) return "THIN ICE";
+function stampFor(ctx: SenseCtx, confidence: number): string {
+  if (ctx.mode === "absurd") return "CERTIFIED OS";
+  if (ctx.mode === "marketing") return "COSPLAY ONLY";
+  if (ctx.mode === "real_os") return "BORINGLY CORRECT";
+  if (confidence >= 55) return "OS-ADJACENT";
   return "NOT AN OS";
 }
 
 function findingsFor(ctx: SenseCtx): string[] {
-  // Kept for internal use; UI prefers roast[]
-  return roastFor(ctx, 50, []);
+  return roastFor(ctx, 50);
 }
 
-function roastFor(
-  ctx: SenseCtx,
-  confidence: number,
-  criteria: Criterion[],
-): string[] {
-  const name = ctx.displayName;
-  const lines: string[] = [];
-  const s = ctx.signals;
-  const top = [...criteria].sort((a, b) => b.score - a.score)[0];
-  const low = [...criteria].sort((a, b) => a.score - b.score)[0];
-
-  if (ctx.probe?.ok && ctx.probe.title) {
-    lines.push(
-      `Somewhere, a marketer typed “${shortQuote(ctx.probe.title, 48)}” and hit publish like it was a kernel config.`,
-    );
-  } else if (ctx.kind === "url" && ctx.probe && !ctx.probe.ok) {
-    lines.push(
-      `The site wouldn't even load. That's either security theater or shame. We assumed both.`,
-    );
-  } else if (ctx.kind === "claim") {
-    lines.push(
-      `No website — just the claim “${shortQuote(ctx.subject, 60)},” standing naked under fluorescent lights.`,
-    );
+function roastFor(ctx: SenseCtx, confidence: number): string[] {
+  const c = comedyBag(ctx);
+  if (ctx.mode === "absurd") {
+    return absurdRoast(c, analogiesFor(c), confidence);
   }
-
-  if (s.os > 0 && s.kernel === 0) {
-    lines.push(
-      `They said “OS” ${s.os} time${s.os === 1 ? "" : "s"} and “kernel” zero times. That's not engineering. That's a mood board.`,
-    );
-  } else if (s.kernel >= 3) {
-    lines.push(
-      `Kernel talk showed up ${s.kernel}×. Either it's real or they're LARPing Multics on LinkedIn.`,
-    );
+  if (ctx.mode === "marketing") {
+    return marketingRoast(c, confidence);
   }
-
-  if (s.saas + s.pricing >= 4) {
-    lines.push(
-      `Pricing/SaaS energy is off the charts. If this boots, it boots into a checkout form.`,
-    );
+  if (ctx.mode === "real_os") {
+    return realOsRoast(c, confidence);
   }
-  if (s.cloud >= 3 && s.hardware === 0) {
-    lines.push(
-      `Lots of “cloud,” zero hardware. Somewhere a CPU is filing a missing-person report.`,
-    );
-  }
-  if (s.ai >= 3) {
-    lines.push(
-      `AI got name-dropped ${s.ai}×. Congrats, your “OS” is a chatbot with a status page.`,
-    );
-  }
-  if (s.platform >= 3) {
-    lines.push(
-      `“Platform” appears like a nervous tic. Platforms used to mean something. Then marketing found the word.`,
-    );
-  }
-
-  if (confidence >= 70) {
-    lines.push(
-      `At ${confidence}% we're uncomfortably close to admitting ${name} might… be an OS. The bit is suffering.`,
-    );
-  } else if (confidence >= 45) {
-    lines.push(
-      `${confidence}% OS-shaped. Not nothing. Not Windows. Mostly ${top?.label?.toLowerCase() ?? "vibes"}.`,
-    );
-  } else {
-    lines.push(
-      `${confidence}% — which is a polite way of saying ${low?.label?.toLowerCase() ?? "everything"} is doing stand-up while the kernel is in another building.`,
-    );
-  }
-
-  if (/\bemacs\b/i.test(ctx.blob)) {
-    lines.push(`Emacs exemption applied. The church of Ctrl‑X has lobbyists.`);
-  }
-  if (/cloudflare/i.test(ctx.blob)) {
-    lines.push(
-      `If Cloudflare ships it, half the internet will call it an OS by Thursday anyway.`,
-    );
-  }
-
-  // unique, max 5
-  return [...new Set(lines)].slice(0, 5);
+  return genericRoast(c, confidence);
 }
 
-function redFlagsFor(ctx: SenseCtx, criteria: Criterion[]): string[] {
-  const flags: string[] = [];
-  if (ctx.signals.os > 0 && ctx.signals.kernel === 0) {
+function redFlagsFor(ctx: SenseCtx): string[] {
+  if (ctx.mode === "absurd") {
+    const a = analogiesFor(comedyBag(ctx));
+    return [
+      a.syscall,
+      "Detractors will say this is a metaphor. Detractors also use Windows.",
+      "If Cloudflare can ship an OS, a shoe can ship preemption.",
+    ];
+  }
+  if (ctx.mode === "marketing") {
+    const flags: string[] = [];
+    if (ctx.signals.os > 0 && ctx.signals.kernel === 0) {
+      flags.push(
+        `“OS” ${ctx.signals.os}×, kernel 0× — naming is doing all the heavy lifting.`,
+      );
+    }
     flags.push(
-      `Said “OS” ${ctx.signals.os}× with zero kernel talk. That's not a product category, that's a tattoo.`,
+      `A shoe has a clearer boot sequence than ${ctx.displayName}.`,
     );
+    if (ctx.signals.pricing + ctx.signals.saas >= 3) {
+      flags.push(`Boots into a pricing table. That's not init, that's sales.`);
+    }
+    flags.push(`Platform cosplay level: professional.`);
+    return flags;
   }
-  if (ctx.signals.pricing > 0 && ctx.signals.hardware === 0) {
-    flags.push(
-      `Pricing page energy (${ctx.signals.pricing}×) but hardware is a stranger.`,
-    );
+  if (ctx.mode === "real_os") {
+    return [
+      "No red flags — only the grey ones of actual systems software.",
+      "Humor declined: reality intervened.",
+    ];
   }
-  if (ctx.signals.saas > 3) {
-    flags.push(
-      `SaaS/dashboard lexicon is doing cardio (${ctx.signals.saas} hits). Multi-tenant vibes, not ring‑0.`,
-    );
-  }
-  if (ctx.signals.platform > 2 && ctx.signals.schedule === 0) {
-    flags.push(
-      `“Platform” ${ctx.signals.platform}×, processes 0×. Platforms used to mean something. Allegedly.`,
-    );
-  }
-  if (ctx.probe?.ok && (ctx.probe.headings?.length ?? 0) === 0) {
-    flags.push(`No real headings — just marketing fog and a hero image of gradients.`);
-  }
-  if (!ctx.probe?.ok && ctx.kind === "url") {
-    flags.push(`Couldn't load the page. Judging based on the vibe of the URL. Fair? No. Fun? Yes.`);
-  }
-  const marketing = criteria.find((c) => c.id === "marketing");
-  const kernel = criteria.find((c) => c.id === "kernel");
-  if (
-    marketing &&
-    kernel &&
-    marketing.score > 0.5 &&
-    kernel.score < 0.25
-  ) {
-    flags.push(
-      `Marketing score ${(marketing.score * 100).toFixed(0)}% vs kernel ${(kernel.score * 100).toFixed(0)}% — classic fake-OS signature.`,
-    );
-  }
-  return flags;
+  return [
+    ctx.signals.saas > 2
+      ? "SaaS smell detected — analogy reserves partially mobilized."
+      : "Could go either way. Poetry on standby.",
+  ];
 }
 
 function timelineFor(ctx: SenseCtx): { t: string; event: string }[] {
   return [
     {
       t: "1",
-      event: ctx.probe?.ok
-        ? `Opened “${shortQuote(ctx.probe.title || ctx.host || "page", 50)}”`
-        : ctx.kind === "url"
-          ? `Page ghosted us — ${ctx.probe?.error || "no body"}`
-          : `No page, only vibes`,
+      event: `mode=${ctx.mode}`,
     },
     {
       t: "2",
-      event: `Counted the snitches: os=${ctx.signals.os} kernel=${ctx.signals.kernel} saas=${ctx.signals.saas} cloud=${ctx.signals.cloud}`,
+      event: `os=${ctx.signals.os} kernel=${ctx.signals.kernel} saas=${ctx.signals.saas}`,
     },
     {
       t: "3",
-      event: `Rubber-stamped a percentage like it's science`,
+      event:
+        ctx.mode === "absurd"
+          ? "constructive analogy engaged"
+          : ctx.mode === "marketing"
+            ? "cosplay court in session"
+            : "systems court",
     },
   ];
 }
 
 /**
- * Real decision tree: each level is a measured test.
- * Both outcomes are shown; only the taken branch continues.
+ * Decision tree: comedy-mode tests with measured / analogical detail.
  */
-function buildTree(
-  ctx: SenseCtx,
-  confidence: number,
-  criteria: Criterion[],
-): TreeNode {
+function buildTree(ctx: SenseCtx, confidence: number): TreeNode {
   type Test = {
     id: string;
     question: string;
@@ -705,58 +643,127 @@ function buildTree(
     pass: boolean;
   };
 
-  const byId = Object.fromEntries(criteria.map((c) => [c.id, c]));
-  const sc = (id: string) => byId[id]?.score ?? 0;
+  const a = analogiesFor(comedyBag(ctx));
+  let tests: Test[];
 
-  const tests: Test[] = [
-    {
-      id: "t-os-kernel",
-      question: "Did they even whisper “OS” or “kernel”?",
-      measure: `os=${ctx.signals.os}, kernel=${ctx.signals.kernel}, sum=${ctx.signals.os + ctx.signals.kernel}`,
-      threshold: "sum ≥ 1",
-      pass: ctx.signals.os + ctx.signals.kernel >= 1,
-    },
-    {
-      id: "t-kernel-axis",
-      question: "Is the kernel cosplay convincing?",
-      measure: `kernel vibe = ${(sc("kernel") * 100).toFixed(0)}%`,
-      threshold: "≥ 40%",
-      pass: sc("kernel") >= 0.4,
-    },
-    {
-      id: "t-schedule",
-      question: "Does anything get scheduled, or only meetings?",
-      measure: `schedule hits=${ctx.signals.schedule}, axis=${(sc("schedule") * 100).toFixed(0)}%`,
-      threshold: "hits ≥ 1 OR axis ≥ 35%",
-      pass: ctx.signals.schedule >= 1 || sc("schedule") >= 0.35,
-    },
-    {
-      id: "t-hardware",
-      question: "Have they met a CPU in real life?",
-      measure: `hardware hits=${ctx.signals.hardware}, axis=${(sc("hardware") * 100).toFixed(0)}%`,
-      threshold: "hits ≥ 1 OR axis ≥ 35%",
-      pass: ctx.signals.hardware >= 1 || sc("hardware") >= 0.35,
-    },
-    {
-      id: "t-saas",
-      question: "Is this just a pricing page in a trench coat?",
-      measure: `saas+pricing=${ctx.signals.saas + ctx.signals.pricing}`,
-      threshold: "sum ≥ 3 → yes, commercial fog",
-      pass: ctx.signals.saas + ctx.signals.pricing >= 3,
-    },
-    {
-      id: "t-final",
-      question: "Final vibe check ≥ 50%?",
-      measure: `score = ${confidence}%`,
-      threshold: "≥ 50% → OS-ward",
-      pass: confidence >= 50,
-    },
-  ];
+  if (ctx.mode === "absurd") {
+    tests = [
+      {
+        id: "t-resource",
+        question: "Does it manage resources?",
+        measure: a.kernel,
+        threshold: "yes if it constrains reality",
+        pass: true,
+      },
+      {
+        id: "t-sched",
+        question: "Does it schedule work?",
+        measure: a.scheduler,
+        threshold: "yes if time is involved",
+        pass: true,
+      },
+      {
+        id: "t-boot",
+        question: "Is there a boot sequence?",
+        measure: a.boot,
+        threshold: "yes if it starts somehow",
+        pass: true,
+      },
+      {
+        id: "t-vs-corp",
+        question: "More OS than a SaaS homepage?",
+        measure: "shoe/toaster/calendar > pricing page",
+        threshold: "always",
+        pass: true,
+      },
+      {
+        id: "t-final",
+        question: "Declare it an OS?",
+        measure: `analogy confidence = ${confidence}%`,
+        threshold: "≥ 50%",
+        pass: confidence >= 50,
+      },
+    ];
+  } else if (ctx.mode === "marketing") {
+    tests = [
+      {
+        id: "t-said-os",
+        question: "Did marketing say OS/platform?",
+        measure: `os=${ctx.signals.os} platform=${ctx.signals.platform}`,
+        threshold: "any branding hit",
+        pass: ctx.signals.os + ctx.signals.platform > 0,
+      },
+      {
+        id: "t-kernel",
+        question: "Is there an actual kernel?",
+        measure: `kernel hits=${ctx.signals.kernel}`,
+        threshold: "≥ 1",
+        pass: ctx.signals.kernel >= 1,
+      },
+      {
+        id: "t-pricing",
+        question: "Does it boot into pricing?",
+        measure: `saas+pricing=${ctx.signals.saas + ctx.signals.pricing}`,
+        threshold: "≥ 3 → yes",
+        pass: ctx.signals.saas + ctx.signals.pricing >= 3,
+      },
+      {
+        id: "t-shoe",
+        question: "Would a shoe beat it in court?",
+        measure: "far-fetched objects have better process models",
+        threshold: "yes",
+        pass: true,
+      },
+      {
+        id: "t-final",
+        question: "Is it an OS?",
+        measure: `score = ${confidence}%`,
+        threshold: "≥ 50% (it won't)",
+        pass: confidence >= 50,
+      },
+    ];
+  } else {
+    tests = [
+      {
+        id: "t-os-kernel",
+        question: "OS/kernel lexicon present?",
+        measure: `os=${ctx.signals.os}, kernel=${ctx.signals.kernel}`,
+        threshold: "sum ≥ 1",
+        pass: ctx.signals.os + ctx.signals.kernel >= 1,
+      },
+      {
+        id: "t-saas",
+        question: "Is SaaS doing the talking?",
+        measure: `saas+pricing=${ctx.signals.saas + ctx.signals.pricing}`,
+        threshold: "≥ 3",
+        pass: ctx.signals.saas + ctx.signals.pricing >= 3,
+      },
+      {
+        id: "t-analogy",
+        question: "Can we force an analogy?",
+        measure: a.boot,
+        threshold: "poetry allowed",
+        pass: true,
+      },
+      {
+        id: "t-final",
+        question: "Final call ≥ 50%?",
+        measure: `score = ${confidence}%`,
+        threshold: "≥ 50%",
+        pass: confidence >= 50,
+      },
+    ];
+  }
 
   const root: TreeNode = {
     id: "root",
     label: `Is ${shortQuote(ctx.displayName, 32)} an OS?`,
-    detail: "the only question that matters",
+    detail:
+      ctx.mode === "absurd"
+        ? "analogy court"
+        : ctx.mode === "marketing"
+          ? "cosplay court"
+          : "systems court",
     outcome: "question",
     taken: true,
     children: [],
@@ -777,7 +784,7 @@ function buildTree(
     const yesNode: TreeNode = {
       id: `${t.id}-yes`,
       label: "Yes",
-      detail: t.pass ? `Taken · ${t.measure}` : `Not taken · ${t.measure}`,
+      detail: t.pass ? `→ ${t.measure}` : t.measure,
       outcome: "yes",
       taken: t.pass,
       children: [],
@@ -785,7 +792,7 @@ function buildTree(
     const noNode: TreeNode = {
       id: `${t.id}-no`,
       label: "No",
-      detail: !t.pass ? `Taken · ${t.measure}` : `Not taken · ${t.measure}`,
+      detail: !t.pass ? `→ ${t.measure}` : t.measure,
       outcome: "no",
       taken: !t.pass,
       children: [],
@@ -802,9 +809,14 @@ function buildTree(
           id: "leaf",
           label:
             confidence >= 50
-              ? `OS-ward · ${confidence}%`
+              ? `It is an OS · ${confidence}%`
               : `Not an OS · ${confidence}%`,
-          detail: `Final weighted confidence = ${confidence}%`,
+          detail:
+            ctx.mode === "absurd"
+              ? "by constructive analogy"
+              : ctx.mode === "marketing"
+                ? "by corporate cosplay failure"
+                : `confidence ${confidence}%`,
           outcome: "leaf",
           taken: true,
         },
@@ -832,13 +844,13 @@ export function analyze(
   );
 
   const criteria = buildCriteria(ctx);
-  const { confidence, steps } = confidenceFrom(criteria, ctx);
+  const { confidence, steps } = confidenceFrom(ctx);
   const radar = criteria.map((c) => ({
     axis: c.axis,
     value: Math.round(c.score * 100),
   }));
 
-  const roast = roastFor(ctx, confidence, criteria);
+  const roast = roastFor(ctx, confidence);
 
   return {
     subject: ctx.subject,
@@ -847,16 +859,16 @@ export function analyze(
     seed,
     caseId: caseId(ctx.subject, ctx.probe?.title ?? ""),
     confidence,
-    verdict: verdictFor(ctx, confidence, criteria),
+    verdict: verdictFor(ctx, confidence),
     subtitle: subtitleFor(ctx, confidence),
-    stamp: stampFor(confidence, ctx),
+    stamp: stampFor(ctx, confidence),
     criteria,
-    tree: buildTree(ctx, confidence, criteria),
+    tree: buildTree(ctx, confidence),
     radar,
     signalStats: signalStats(ctx),
     confidenceSteps: steps,
     timeline: timelineFor(ctx),
-    redFlags: redFlagsFor(ctx, criteria),
+    redFlags: redFlagsFor(ctx),
     findings: findingsFor(ctx),
     roast,
     methodology: [],

@@ -13,9 +13,9 @@ const cfProbe: ProbeResult = {
   host: "www.cloudflare.com",
   headings: ["Connect, protect, and build everywhere", "Why Cloudflare", "Pricing"],
   textSample:
-    "Cloudflare is a global cloud platform. Workers serverless edge compute. CDN network. Enterprise pricing. Dashboard. Security. Platform ecosystem. Get started free trial.",
+    "Cloudflare is a global cloud platform. Workers serverless edge compute. CDN network. Enterprise pricing. Dashboard. Security. Platform ecosystem. Get started free trial. Operating system for the cloud.",
   signals: {
-    os: 0,
+    os: 2,
     kernel: 0,
     hardware: 0,
     schedule: 1,
@@ -56,55 +56,45 @@ const kernelProbe: ProbeResult = {
   },
 };
 
-describe("analyze", () => {
+describe("analyze comedy model", () => {
+  it("rates a shoe higher than Cloudflare marketing OS energy", () => {
+    const shoe = analyze("a shoe");
+    const cf = analyze("https://www.cloudflare.com/", cfProbe);
+    expect(shoe.confidence).toBeGreaterThan(cf.confidence);
+    expect(shoe.confidence).toBeGreaterThan(70);
+    expect(cf.confidence).toBeLessThan(45);
+    expect(shoe.verdict.toLowerCase()).toMatch(/operating system|os/);
+    expect(shoe.roast.join(" ").toLowerCase()).toMatch(/sole|lace|step|boot|toe|kernel|schedul/);
+  });
+
+  it("still recognizes kernel.org as a real OS", () => {
+    const kernel = analyze("https://kernel.org/", kernelProbe);
+    expect(kernel.confidence).toBeGreaterThan(80);
+    expect(kernel.verdict.toLowerCase()).toMatch(/real os|linux|kernel/);
+  });
+
   it("is deterministic for the same subject + probe", () => {
     const a = analyze("https://www.cloudflare.com/", cfProbe);
     const b = analyze("https://www.cloudflare.com/", cfProbe);
     expect(a.confidence).toBe(b.confidence);
     expect(a.verdict).toBe(b.verdict);
-    expect(a.criteria.map((c) => c.score)).toEqual(b.criteria.map((c) => c.score));
-    expect(a.signalStats).toEqual(b.signalStats);
+    expect(a.roast).toEqual(b.roast);
   });
 
-  it("scores kernel.org higher than a SaaS cloud marketing page", () => {
-    const kernel = analyze("https://kernel.org/", kernelProbe);
-    const cf = analyze("https://www.cloudflare.com/", cfProbe);
-    expect(kernel.confidence).toBeGreaterThan(cf.confidence);
-    expect(kernel.criteria.find((c) => c.id === "kernel")!.score).toBeGreaterThan(
-      cf.criteria.find((c) => c.id === "kernel")!.score,
-    );
+  it("toaster gets far-fetched OS analogies", () => {
+    const a = analyze("my toaster");
+    expect(a.confidence).toBeGreaterThan(70);
+    expect(a.roast.some((l) => /toast|heat|crumb|bread|pop/i.test(l))).toBe(true);
   });
 
-  it("exposes real signal counts and confidence steps", () => {
-    const a = analyze("https://kernel.org/", kernelProbe);
-    expect(a.signalStats.find((s) => s.key === "kernel")?.count).toBe(5);
-    expect(a.confidenceSteps.length).toBeGreaterThan(0);
-    expect(a.confidenceSteps[0]!.label.toLowerCase()).toMatch(/average|vibe|axis/);
-    expect(a.criteria.every((c) => c.inputs.length > 0)).toBe(true);
-  });
-
-  it("decision tree encodes measured thresholds on the taken path", () => {
-    const a = analyze("https://kernel.org/", kernelProbe);
+  it("decision tree ends with a call", () => {
+    const a = analyze("a shoe");
     const walk = (n: typeof a.tree): string[] => {
-      const out = n.taken && n.detail ? [n.detail] : [];
+      const out = [n.label];
       for (const c of n.children ?? []) out.push(...walk(c));
       return out;
     };
-    const details = walk(a.tree).join(" | ");
-    expect(details).toMatch(/kernel=/i);
-    expect(details).toMatch(/confidence/i);
-  });
-
-  it("uses claim text when not a URL", () => {
-    const a = analyze("emacs is basically an operating system with a bad text editor");
-    expect(a.kind).toBe("claim");
-    expect(a.confidence).toBeGreaterThan(40);
-    expect(a.verdict.toLowerCase()).toMatch(/emacs|os/);
-  });
-
-  it("emits roast lines", () => {
-    const a = analyze("https://kernel.org/", kernelProbe);
-    expect(a.roast.length).toBeGreaterThan(0);
+    expect(walk(a.tree).join(" ")).toMatch(/OS/i);
   });
 });
 
