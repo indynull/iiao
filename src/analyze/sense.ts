@@ -516,22 +516,16 @@ function verdictFor(
 }
 
 function subtitleFor(ctx: SenseCtx, confidence: number): string {
-  const bits: string[] = [];
-  if (ctx.probe?.ok && ctx.probe.title) {
-    bits.push(`They went with “${shortQuote(ctx.probe.title, 52)}.”`);
-  } else if (ctx.kind === "url" && ctx.probe && !ctx.probe.ok) {
-    bits.push(
-      `Page wouldn't talk (${ctx.probe.error || "unreachable"}). Judging the aura instead.`,
-    );
-  } else if (ctx.kind === "claim") {
-    bits.push(`No URL — just your words, exposed to daylight.`);
+  if (confidence >= 75) {
+    return `We're not saying it is an OS. We're saying ${confidence}% of the evidence is embarrassing.`;
   }
-  bits.push(
-    confidence >= 50
-      ? `Committee leans “kinda OS” at ${confidence}%.`
-      : `Committee leans “lol no” at ${confidence}%.`,
-  );
-  return bits.join(" ");
+  if (confidence >= 50) {
+    return `Schrodinger's OS: ${confidence}% chance it's real, 100% chance the naming was aggressive.`;
+  }
+  if (confidence >= 30) {
+    return `Could be an OS if you redefine “OS” as “thing with a website.” Please don't.`;
+  }
+  return `This is about as much OS as a toaster is a chef. ${confidence}% on a good day.`;
 }
 
 function stampFor(confidence: number, ctx: SenseCtx): string {
@@ -543,37 +537,91 @@ function stampFor(confidence: number, ctx: SenseCtx): string {
 }
 
 function findingsFor(ctx: SenseCtx): string[] {
-  const out: string[] = [];
-  if (ctx.probe?.ok) {
-    out.push(
-      `Snagged ${ctx.probe.bytes ?? 0} bytes of HTML like a raccoon in a dumpster (${ctx.probe.status ?? "?"}).`,
+  // Kept for internal use; UI prefers roast[]
+  return roastFor(ctx, 50, []);
+}
+
+function roastFor(
+  ctx: SenseCtx,
+  confidence: number,
+  criteria: Criterion[],
+): string[] {
+  const name = ctx.displayName;
+  const lines: string[] = [];
+  const s = ctx.signals;
+  const top = [...criteria].sort((a, b) => b.score - a.score)[0];
+  const low = [...criteria].sort((a, b) => a.score - b.score)[0];
+
+  if (ctx.probe?.ok && ctx.probe.title) {
+    lines.push(
+      `Somewhere, a marketer typed “${shortQuote(ctx.probe.title, 48)}” and hit publish like it was a kernel config.`,
     );
-  } else if (ctx.kind === "url") {
-    out.push(
-      `Page said no${ctx.probe?.error ? ` (${ctx.probe.error})` : ""}. Cowards.`,
+  } else if (ctx.kind === "url" && ctx.probe && !ctx.probe.ok) {
+    lines.push(
+      `The site wouldn't even load. That's either security theater or shame. We assumed both.`,
     );
-  } else {
-    out.push(`You typed: “${shortQuote(ctx.subject, 100)}”. Brave.`);
+  } else if (ctx.kind === "claim") {
+    lines.push(
+      `No website — just the claim “${shortQuote(ctx.subject, 60)},” standing naked under fluorescent lights.`,
+    );
   }
 
-  const s = ctx.signals;
-  const hot = (
-    [
-      [s.kernel, "kernel"],
-      [s.os, "OS"],
-      [s.saas, "SaaS"],
-      [s.cloud, "cloud"],
-      [s.pricing, "pricing"],
-      [s.ai, "AI"],
-    ] as [number, string][]
-  )
-    .filter(([n]) => n > 0)
-    .sort((a, b) => b[0] - a[0])
-    .slice(0, 4)
-    .map(([n, k]) => `${k}×${n}`);
-  if (hot.length) out.push(`Loudest words: ${hot.join(", ")}.`);
-  else out.push(`The page said almost nothing OS-adjacent. Silence is also data.`);
-  return out;
+  if (s.os > 0 && s.kernel === 0) {
+    lines.push(
+      `They said “OS” ${s.os} time${s.os === 1 ? "" : "s"} and “kernel” zero times. That's not engineering. That's a mood board.`,
+    );
+  } else if (s.kernel >= 3) {
+    lines.push(
+      `Kernel talk showed up ${s.kernel}×. Either it's real or they're LARPing Multics on LinkedIn.`,
+    );
+  }
+
+  if (s.saas + s.pricing >= 4) {
+    lines.push(
+      `Pricing/SaaS energy is off the charts. If this boots, it boots into a checkout form.`,
+    );
+  }
+  if (s.cloud >= 3 && s.hardware === 0) {
+    lines.push(
+      `Lots of “cloud,” zero hardware. Somewhere a CPU is filing a missing-person report.`,
+    );
+  }
+  if (s.ai >= 3) {
+    lines.push(
+      `AI got name-dropped ${s.ai}×. Congrats, your “OS” is a chatbot with a status page.`,
+    );
+  }
+  if (s.platform >= 3) {
+    lines.push(
+      `“Platform” appears like a nervous tic. Platforms used to mean something. Then marketing found the word.`,
+    );
+  }
+
+  if (confidence >= 70) {
+    lines.push(
+      `At ${confidence}% we're uncomfortably close to admitting ${name} might… be an OS. The bit is suffering.`,
+    );
+  } else if (confidence >= 45) {
+    lines.push(
+      `${confidence}% OS-shaped. Not nothing. Not Windows. Mostly ${top?.label?.toLowerCase() ?? "vibes"}.`,
+    );
+  } else {
+    lines.push(
+      `${confidence}% — which is a polite way of saying ${low?.label?.toLowerCase() ?? "everything"} is doing stand-up while the kernel is in another building.`,
+    );
+  }
+
+  if (/\bemacs\b/i.test(ctx.blob)) {
+    lines.push(`Emacs exemption applied. The church of Ctrl‑X has lobbyists.`);
+  }
+  if (/cloudflare/i.test(ctx.blob)) {
+    lines.push(
+      `If Cloudflare ships it, half the internet will call it an OS by Thursday anyway.`,
+    );
+  }
+
+  // unique, max 5
+  return [...new Set(lines)].slice(0, 5);
 }
 
 function redFlagsFor(ctx: SenseCtx, criteria: Criterion[]): string[] {
@@ -790,6 +838,8 @@ export function analyze(
     value: Math.round(c.score * 100),
   }));
 
+  const roast = roastFor(ctx, confidence, criteria);
+
   return {
     subject: ctx.subject,
     kind: ctx.kind,
@@ -808,6 +858,7 @@ export function analyze(
     timeline: timelineFor(ctx),
     redFlags: redFlagsFor(ctx, criteria),
     findings: findingsFor(ctx),
+    roast,
     methodology: [],
     probe: ctx.probe,
   };

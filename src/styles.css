@@ -1123,3 +1123,99 @@ input {
   clip: rect(0, 0, 0, 0);
   border: 0;
 }
+
+/* Loading */
+.loading {
+  padding: 2rem 0 4rem;
+  text-align: left;
+}
+
+.loading__subject {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--dim);
+  word-break: break-all;
+  margin: 0 0 1.5rem;
+}
+
+.loading__line {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.35rem;
+  color: var(--paper);
+  margin: 0 0 1.5rem;
+  min-height: 2em;
+}
+
+.loading__bar {
+  height: 3px;
+  width: min(280px, 70%);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.loading__bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, var(--hot), var(--acid));
+  border-radius: inherit;
+  animation: loadslide 1.1s ease-in-out infinite;
+}
+
+@keyframes loadslide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+/* Roast body */
+.card--roast {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 61, 129, 0.06),
+    rgba(18, 21, 31, 0.9) 40%
+  );
+}
+
+.roast__p {
+  margin: 0 0 0.85rem;
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.roast__p:last-child {
+  margin-bottom: 0;
+}
+
+.schips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.schip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.schip b {
+  color: var(--acid);
+  font-weight: 600;
+}
+
+.schip--empty {
+  color: var(--dim);
+  font-style: italic;
+}

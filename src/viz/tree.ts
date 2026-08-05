@@ -77,8 +77,8 @@ export class IiaoTree extends HTMLElement {
     this.innerHTML = `
       <div class="dt">
         <p class="dt-legend">
-          <span class="dt-legend__swatch dt-legend__swatch--taken"></span> the path we took
-          <span class="dt-legend__swatch dt-legend__swatch--idle"></span> the path we mocked
+          <span class="dt-legend__swatch dt-legend__swatch--taken"></span> what happened
+          <span class="dt-legend__swatch dt-legend__swatch--idle"></span> what didn't
         </p>
         <div class="dt-flow">
           ${stepsHtml}

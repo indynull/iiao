@@ -1,15 +1,13 @@
-import { analyze, pipelineFor } from "./analyze/engine";
+import { analyze } from "./analyze/engine";
 import type { Analysis, ProbeResult } from "./analyze/types";
 import { navigate, parseLocation, reportPath } from "./routes";
 import "./viz/gauge";
 import "./viz/radar";
 import "./viz/tree";
 import "./viz/bars";
-import "./viz/stats";
 import type { IiaoRadar } from "./viz/radar";
 import type { IiaoTree } from "./viz/tree";
 import type { IiaoBars } from "./viz/bars";
-import type { IiaoStats } from "./viz/stats";
 
 const EXAMPLES = [
   "https://www.cloudflare.com/",
@@ -17,7 +15,17 @@ const EXAMPLES = [
   "https://kernel.org/",
   "https://www.microsoft.com/windows",
   "a toaster with Wi‑Fi",
-  "the browser tab I'm ignoring",
+  "my calendar app",
+];
+
+const LOADING_LINES = [
+  "asking Multics if this counts…",
+  "checking for a bootloader (emotional)…",
+  "scanning for the word “platform”…",
+  "consulting three raccoons in a trench coat…",
+  "measuring ring‑0 cosplay density…",
+  "negotiating with the marketing department…",
+  "looking for a kernel under the pricing table…",
 ];
 
 function esc(s: string): string {
@@ -36,15 +44,15 @@ function shell(inner: string): string {
           <span class="brand__mark" aria-hidden="true"></span>
           <span class="brand__text">
             <span class="brand__name">Is it an OS?</span>
-            <span class="brand__sub">legally not advice</span>
+            <span class="brand__sub">no it isn't (probably)</span>
           </span>
         </a>
-        <span class="pill">kernels optional · vibes mandatory</span>
+        <span class="pill">free judgments · paid therapy not included</span>
       </header>
       ${inner}
       <footer class="footer">
-        <span>algor.ist / iiao · if it boots in your heart, call a doctor</span>
-        <span>shareable /is/… links · no login, no refunds</span>
+        <span>algor.ist · not a real standards body</span>
+        <span>share the link · ruin a product meeting</span>
       </footer>
     </div>
     <div class="toast" id="toast" role="status"></div>
@@ -55,107 +63,89 @@ function homeView(): string {
   return shell(`
     <section class="hero">
       <div>
-        <p class="hero__kicker">unofficial bureau of ring‑0 cosplay</p>
+        <p class="hero__kicker">the internet's least useful standards body</p>
         <h1>Is it <em>an OS?</em></h1>
         <p class="hero__lead">
-          Drop a link to <strong>anything</strong> — SaaS, a toaster, “Cloudflare OS,” your ex’s startup.
-          We read the page like a hostile systems committee and stamp how OS it is.
-          Serious charts. Unserious conclusions.
+          Paste a link. We will decide — with charts — whether it's an operating system
+          or just a website that said something unhinged in a press release.
         </p>
       </div>
       <form class="compose" id="compose" autocomplete="off">
         <div class="compose__row">
           <label class="sr-only" for="subject">URL or claim</label>
           <input id="subject" name="subject" type="text" inputmode="url"
-            placeholder="paste a URL, or type a crime against nomenclature"
+            placeholder="https://your-favorite-crime.com"
             required maxlength="2048" />
-          <button class="btn btn--primary" type="submit">Roast it</button>
+          <button class="btn btn--primary" type="submit">Judge</button>
         </div>
-        <p class="compose__hint">we actually open the link · results are shareable · your honor, it said “platform”</p>
+        <p class="compose__hint">works on products, repos, toasters, and lies</p>
         <div class="examples" id="examples">
           ${EXAMPLES.map((e) => `<button type="button" class="chip" data-ex="${esc(e)}">${esc(e)}</button>`).join("")}
         </div>
       </form>
-      <div class="feature-grid">
-        <article class="feature">
-          <h3>Bureaucracy, but funny</h3>
-          <p>Yes/no inquisitions with receipts. The tree has opinions and a rubber stamp.</p>
-        </article>
-        <article class="feature">
-          <h3>Charts with attitude</h3>
-          <p>Radar, gauges, hit counts — the aesthetic of rigor applied to nonsense branding.</p>
-        </article>
-        <article class="feature">
-          <h3>Weaponized permalinks</h3>
-          <p>Send someone “proof” their product is 17% operating system. Friendship optional.</p>
-        </article>
-      </div>
     </section>
   `);
 }
 
 function pipelineView(subject: string): string {
-  const steps = pipelineFor(subject);
   return shell(`
-    <section>
-      <p class="hero__kicker">opening the chaos window</p>
-      <h1 class="verdict-title" style="font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.4rem);margin:0 0 1rem">
-        Judging your link…
+    <section class="loading">
+      <p class="hero__kicker">hold please</p>
+      <h1 class="verdict-title" style="font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.6rem);margin:0 0 0.75rem">
+        Deciding…
       </h1>
-      <p class="subject-line" style="border:none;padding:0;margin:0 0 1rem;color:var(--muted)">${esc(subject)}</p>
-      <div class="pipeline" id="pipeline">
-        <div class="pipeline__head">
-          <span>ritual in progress</span>
-          <span id="pipe-status">vibing</span>
-        </div>
-        <ul class="pipeline__list">
-          ${steps
-            .map(
-              (s) => `
-            <li class="pipeline__item" data-id="${s.id}" data-status="pending" data-ms="${Math.round(s.ms)}">
-              <span class="pipeline__dot" aria-hidden="true"></span>
-              <div>
-                <div class="pipeline__label">${esc(s.label)}</div>
-                <p class="pipeline__blurb">${esc(s.blurb)}</p>
-              </div>
-              <span class="pipeline__ms">—</span>
-            </li>`,
-            )
-            .join("")}
-        </ul>
-      </div>
+      <p class="loading__subject">${esc(subject)}</p>
+      <p class="loading__line" id="load-line">${esc(LOADING_LINES[0]!)}</p>
+      <div class="loading__bar" aria-hidden="true"><span></span></div>
     </section>
   `);
 }
 
+function signalChips(a: Analysis): string {
+  const funny: Record<string, string> = {
+    os: "said OS",
+    kernel: "kernel cosplay",
+    hardware: "touched metal",
+    schedule: "has processes?",
+    platform: "platform™",
+    saas: "SaaS energy",
+    pricing: "pricing page",
+    cloud: "cloud vibes",
+    browser: "it's a website",
+    security: "security theater",
+    openSource: "open source aura",
+    ai: "AI-washed",
+  };
+  const chips = (a.signalStats ?? [])
+    .filter((s) => s.count > 0)
+    .sort((x, y) => y.count - x.count)
+    .slice(0, 8)
+    .map(
+      (s) =>
+        `<span class="schip"><b>${s.count}×</b> ${esc(funny[s.key] ?? s.label)}</span>`,
+    )
+    .join("");
+  return chips || `<span class="schip schip--empty">said nothing useful</span>`;
+}
+
 function reportView(a: Analysis): string {
-  const exhibit = a.probe?.ok
-    ? [
-        a.probe.title ? `they titled it “${a.probe.title}”` : null,
-        a.probe.description ? `meta pitch: “${a.probe.description.slice(0, 120)}${(a.probe.description.length > 120 ? "…" : "")}”` : null,
-        a.probe.headings?.length
-          ? `headlines on parade: ${a.probe.headings.slice(0, 3).join(" · ")}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join("\n")
-    : a.probe?.error
-      ? `the page ghosted us (${a.probe.error}) — judging the URL like a rumor`
-      : "no webpage — pure vibes from your claim";
+  const roast = (a.roast?.length ? a.roast : a.findings) ?? [];
+  const hotCriteria = [...a.criteria]
+    .sort((x, y) => Math.abs(y.score - 0.5) - Math.abs(x.score - 0.5))
+    .slice(0, 4);
 
   return shell(`
     <section>
       <div class="actions">
-        <button class="btn btn--ghost" type="button" id="btn-copy">Copy the roast</button>
-        <button class="btn btn--ghost" type="button" id="btn-again">Another victim</button>
-        <a class="btn btn--ghost" href="${reportPath(a.subject)}" id="permalink">${esc(location.origin)}${reportPath(a.subject)}</a>
+        <button class="btn btn--ghost" type="button" id="btn-copy">Share this insult</button>
+        <button class="btn btn--ghost" type="button" id="btn-again">Judge something else</button>
       </div>
 
       <div class="report-head">
         <article class="card card--paper">
           <div class="meta-row">
-            <span class="tag">${esc(a.caseId)}</span>
             ${a.host ? `<span class="tag">${esc(a.host)}</span>` : ""}
+            <span class="tag">${a.confidence}% OS</span>
           </div>
           <h1 class="verdict-title">${esc(a.verdict)}</h1>
           <p class="verdict-sub">${esc(a.subtitle)}</p>
@@ -163,48 +153,59 @@ function reportView(a: Analysis): string {
           <div class="stamp">${esc(a.stamp)}</div>
         </article>
         <article class="card gauge-card">
-          <iiao-gauge value="${a.confidence}" label="how OS is it"></iiao-gauge>
+          <iiao-gauge value="${a.confidence}" label="os-ness"></iiao-gauge>
         </article>
       </div>
 
-      <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Exhibit A (from the page)</h2>
-        <pre class="probe-box">${esc(exhibit || "…emptiness…")}</pre>
-        <ul class="listy" style="margin-top:0.85rem">
-          ${(a.findings ?? []).map((f) => `<li>${esc(f)}</li>`).join("")}
+      <article class="card card--roast" style="margin-bottom:1rem">
+        <div class="roast">
+          ${roast.map((line) => `<p class="roast__p">${esc(line)}</p>`).join("")}
+        </div>
+        <div class="schips" style="margin-top:1.1rem">${signalChips(a)}</div>
+      </article>
+
+      ${
+        a.redFlags.length
+          ? `<article class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">hot takes</h2>
+        <ul class="listy listy--hot">
+          ${a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")}
         </ul>
-      </article>
+      </article>`
+          : ""
+      }
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">The receipts</h2>
-        <iiao-stats id="stats"></iiao-stats>
-      </article>
-
-      <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">The inquisition</h2>
+        <h2 class="section-title">awkward questions</h2>
         <iiao-tree id="tree"></iiao-tree>
       </article>
 
-      <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Vibe radar</h2>
-        <iiao-radar id="radar"></iiao-radar>
-      </article>
-
-      <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">How the score got weird</h2>
-        <iiao-bars id="bars"></iiao-bars>
-      </article>
-
-      <article class="card">
-        <h2 class="section-title">Crimes against OS-ness</h2>
-        <ul class="listy listy--hot">
-          ${
-            a.redFlags.length
-              ? a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")
-              : "<li>Shockingly clean. Suspicious.</li>"
-          }
-        </ul>
-      </article>
+      <div class="grid-2">
+        <article class="card">
+          <h2 class="section-title">vibe circle</h2>
+          <iiao-radar id="radar"></iiao-radar>
+        </article>
+        <article class="card">
+          <h2 class="section-title">scoreboard</h2>
+          <div class="bars" id="mini-bars">
+            ${hotCriteria
+              .map(
+                (c, i) => `
+              <div class="bar-row" style="--i:${i}">
+                <div class="bar-row__meta">
+                  <span class="bar-row__label">${esc(c.label)}</span>
+                  <span class="bar-row__score">${Math.round(c.score * 100)}</span>
+                </div>
+                <div class="bar-row__track">
+                  <div class="bar-row__fill" style="--w:${c.score}"></div>
+                </div>
+                <p class="bar-row__note">${esc(c.note)}</p>
+              </div>`,
+              )
+              .join("")}
+          </div>
+        </article>
+      </div>
     </section>
   `);
 }
@@ -225,41 +226,27 @@ async function probeUrl(subject: string): Promise<ProbeResult | null> {
     if (!res.ok) return { ok: false, error: `http ${res.status}` };
     return (await res.json()) as ProbeResult;
   } catch {
-    return { ok: false, error: "not a URL / probe offline" };
+    return { ok: false, error: "unreachable" };
   }
-}
-
-async function runPipeline(root: HTMLElement, subject: string): Promise<Analysis> {
-  const items = [...root.querySelectorAll<HTMLElement>(".pipeline__item")];
-  let probe: ProbeResult | null = null;
-
-  for (const item of items) {
-    item.dataset.status = "running";
-    const ms = Number(item.dataset.ms ?? 300);
-    const id = item.dataset.id;
-    const started = performance.now();
-
-    if (id === "probe") {
-      probe = await probeUrl(subject);
-      if (probe && !probe.ok) item.dataset.status = "warn";
-    } else {
-      await sleep(ms);
-    }
-
-    const elapsed = Math.round(performance.now() - started);
-    const msEl = item.querySelector(".pipeline__ms");
-    if (msEl) msEl.textContent = `${elapsed}ms`;
-    if (item.dataset.status === "running") item.dataset.status = "done";
-  }
-
-  const status = document.getElementById("pipe-status");
-  if (status) status.textContent = "sealed";
-
-  return analyze(subject, probe);
 }
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function runLoading(root: HTMLElement, subject: string): Promise<Analysis> {
+  const lineEl = root.querySelector("#load-line");
+  let i = 0;
+  const tick = window.setInterval(() => {
+    i = (i + 1) % LOADING_LINES.length;
+    if (lineEl) lineEl.textContent = LOADING_LINES[i]!;
+  }, 700);
+
+  const probePromise = probeUrl(subject);
+  // Minimum comedy delay so the lines can land
+  const [, probe] = await Promise.all([sleep(1600), probePromise]);
+  window.clearInterval(tick);
+  return analyze(subject, probe);
 }
 
 function bindHome(root: HTMLElement) {
@@ -283,22 +270,14 @@ function bindHome(root: HTMLElement) {
 function bindReport(root: HTMLElement, a: Analysis) {
   const radar = root.querySelector<IiaoRadar>("#radar");
   const tree = root.querySelector<IiaoTree>("#tree");
-  const bars = root.querySelector<IiaoBars>("#bars");
-  const stats = root.querySelector<IiaoStats>("#stats");
   if (radar) radar.data = a.radar;
   if (tree) tree.tree = a.tree;
-  if (bars) bars.items = a.criteria;
-  if (stats)
-    stats.data = {
-      signals: a.signalStats ?? [],
-      steps: a.confidenceSteps ?? [],
-    };
 
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast("Roast link copied. Be kind. Or don't.");
+      toast("Copied. Go start a fight.");
     } catch {
       toast(url);
     }
@@ -331,7 +310,7 @@ export async function renderApp(mount: HTMLElement) {
   mount.innerHTML = pipelineView(route.subject);
   bindNav(mount);
 
-  const analysis = await runPipeline(mount, route.subject);
+  const analysis = await runLoading(mount, route.subject);
   if (token !== runToken) return;
 
   const path = reportPath(route.subject);

@@ -53,6 +53,8 @@ export type Analysis = {
   redFlags: string[];
   methodology: string[];
   findings: string[];
+  /** Punchy monologue lines — the main comedy output */
+  roast: string[];
   probe?: ProbeResult | null;
 };
 

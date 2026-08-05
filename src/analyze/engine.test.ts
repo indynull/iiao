@@ -101,6 +101,11 @@ describe("analyze", () => {
     expect(a.confidence).toBeGreaterThan(40);
     expect(a.verdict.toLowerCase()).toMatch(/emacs|os/);
   });
+
+  it("emits roast lines", () => {
+    const a = analyze("https://kernel.org/", kernelProbe);
+    expect(a.roast.length).toBeGreaterThan(0);
+  });
 });
 
 describe("permalink codec", () => {
