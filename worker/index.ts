@@ -23,6 +23,8 @@ type TelemetryEvent = {
   answer: string;
   confidence: number;
   engine: string;
+  /** Model id when engine is workers-ai; null/omitted for rules */
+  model: string | null;
   thingSource: string;
   /** hostname only when input was a URL — no full path (less PII) */
   host?: string;
@@ -32,6 +34,7 @@ type TelemetryStats = {
   total: number;
   byAnswer: Record<string, number>;
   byEngine: Record<string, number>;
+  byModel: Record<string, number>;
   byKind: Record<string, number>;
   updatedAt: string;
 };
@@ -157,6 +160,8 @@ app.post("/api/judge", async (c) => {
     };
   }
 
+  const modelUsed = engine === "workers-ai" ? MODEL : null;
+
   // Small KV write — await so we don't rely on waitUntil edge cases
   await recordTelemetry(c.env, {
     ts: new Date().toISOString(),
@@ -165,6 +170,7 @@ app.post("/api/judge", async (c) => {
     answer: String(analysis.verdict || "").slice(0, 16),
     confidence: Number(analysis.confidence) || 0,
     engine,
+    model: modelUsed,
     thingSource: resolved.source.slice(0, 40),
     host: isUrl ? hostOnly(subject) : undefined,
   });
@@ -172,6 +178,7 @@ app.post("/api/judge", async (c) => {
   return c.json({
     ok: true,
     engine,
+    model: modelUsed,
     thing: resolved.thing,
     thingSource: resolved.source,
     aiError: aiError || undefined,
@@ -207,6 +214,7 @@ function emptyStats(): TelemetryStats {
     total: 0,
     byAnswer: {},
     byEngine: {},
+    byModel: {},
     byKind: {},
     updatedAt: new Date().toISOString(),
   };
@@ -244,16 +252,24 @@ async function recordTelemetry(env: Env, event: TelemetryEvent): Promise<void> {
     recent.unshift(event);
     while (recent.length > RECENT_MAX) recent.pop();
 
-    const stats = (safeJson(statsRaw) as TelemetryStats) || emptyStats();
-    stats.total += 1;
-    stats.byAnswer[event.answer] = (stats.byAnswer[event.answer] || 0) + 1;
-    stats.byEngine[event.engine] = (stats.byEngine[event.engine] || 0) + 1;
-    stats.byKind[event.inputKind] = (stats.byKind[event.inputKind] || 0) + 1;
-    stats.updatedAt = event.ts;
+    const prev = (safeJson(statsRaw) as TelemetryStats) || emptyStats();
+    const next: TelemetryStats = {
+      total: (prev.total || 0) + 1,
+      byAnswer: { ...(prev.byAnswer || {}) },
+      byEngine: { ...(prev.byEngine || {}) },
+      byModel: { ...(prev.byModel || {}) },
+      byKind: { ...(prev.byKind || {}) },
+      updatedAt: event.ts,
+    };
+    next.byAnswer[event.answer] = (next.byAnswer[event.answer] || 0) + 1;
+    next.byEngine[event.engine] = (next.byEngine[event.engine] || 0) + 1;
+    const modelKey = event.model || "rules";
+    next.byModel[modelKey] = (next.byModel[modelKey] || 0) + 1;
+    next.byKind[event.inputKind] = (next.byKind[event.inputKind] || 0) + 1;
 
     await Promise.all([
       env.TELEMETRY.put(RECENT_KEY, JSON.stringify(recent)),
-      env.TELEMETRY.put(STATS_KEY, JSON.stringify(stats)),
+      env.TELEMETRY.put(STATS_KEY, JSON.stringify(next)),
     ]);
   } catch {
     /* never break the site for telemetry */

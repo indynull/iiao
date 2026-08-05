@@ -31,7 +31,7 @@ npm run deploy
 
 ## Telemetry (owner)
 
-Judgments log **thing**, answer, confidence, engine, url-vs-claim, host — not full free-text dumps of long claims beyond 200 chars, no cookies, no Google Analytics.
+Judgments log **thing**, answer, confidence, engine, **model** (Workers AI id or `null`/rules), url-vs-claim, host — not full free-text dumps of long claims beyond 200 chars, no cookies, no Google Analytics. Aggregates include `byModel`.
 
 ```bash
 # Recent + top things (Bearer or ?token=)
