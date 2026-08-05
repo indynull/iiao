@@ -79,7 +79,7 @@ describe("analyze", () => {
     const a = analyze("https://kernel.org/", kernelProbe);
     expect(a.signalStats.find((s) => s.key === "kernel")?.count).toBe(5);
     expect(a.confidenceSteps.length).toBeGreaterThan(0);
-    expect(a.confidenceSteps[0]!.label).toMatch(/weighted/i);
+    expect(a.confidenceSteps[0]!.label.toLowerCase()).toMatch(/average|vibe|axis/);
     expect(a.criteria.every((c) => c.inputs.length > 0)).toBe(true);
   });
 

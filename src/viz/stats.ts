@@ -49,16 +49,16 @@ export class IiaoStats extends HTMLElement {
     this.innerHTML = `
       <div class="stats-grid">
         <div>
-          <h3 class="stats__h">Lexicon hit counts</h3>
+          <h3 class="stats__h">Words that snitched</h3>
           <table class="stats-table">
-            <thead><tr><th>Signal</th><th>n</th><th></th></tr></thead>
+            <thead><tr><th>Crime</th><th>n</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
         <div>
-          <h3 class="stats__h">Confidence breakdown</h3>
+          <h3 class="stats__h">How we got to the %</h3>
           <table class="stats-table">
-            <thead><tr><th>Step</th><th>Δ</th><th>Total</th></tr></thead>
+            <thead><tr><th>Plot twist</th><th>Δ</th><th>Total</th></tr></thead>
             <tbody>${steps}</tbody>
           </table>
         </div>

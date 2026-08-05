@@ -181,7 +181,9 @@ const AXES: AxisDef[] = [
       return { score: clamp01(s), inputs };
     },
     note: (ctx, score) =>
-      `kernel=${ctx.signals.kernel}, os=${ctx.signals.os} → score ${(score * 100).toFixed(0)}%`,
+      score > 0.55
+        ? `Actually said kernel/OS stuff (${ctx.signals.kernel + ctx.signals.os}×). Bold of them.`
+        : `Almost no kernel talk. Ring‑0 remains a cosplay outfit.`,
   },
   {
     id: "schedule",
@@ -203,7 +205,9 @@ const AXES: AxisDef[] = [
       };
     },
     note: (ctx, score) =>
-      `schedule hits=${ctx.signals.schedule} → ${(score * 100).toFixed(0)}%`,
+      score > 0.4
+        ? `Mentions processes/scheduling (${ctx.signals.schedule}×). Something gets “run.”`
+        : `No process model in the copy. Work is scheduled by hope and Slack.`,
   },
   {
     id: "hardware",
@@ -229,7 +233,9 @@ const AXES: AxisDef[] = [
       };
     },
     note: (ctx, score) =>
-      `hardware hits=${ctx.signals.hardware} → ${(score * 100).toFixed(0)}%`,
+      score > 0.4
+        ? `Touches metal in language (${ctx.signals.hardware}×). Silicon was mentioned.`
+        : `Hardware is a myth. This thing runs on pure marketing weather.`,
   },
   {
     id: "marketing",
@@ -257,7 +263,9 @@ const AXES: AxisDef[] = [
       };
     },
     note: (ctx, score) =>
-      `platform/saas/pricing surface → ${(score * 100).toFixed(0)}%`,
+      score > 0.55
+        ? `Platform/SaaS fog is thick. Pricing energy detected.`
+        : `Surprisingly restrained on the slogan front. Still not a kernel.`,
   },
   {
     id: "syscall",
@@ -280,7 +288,10 @@ const AXES: AxisDef[] = [
         ],
       };
     },
-    note: (ctx, score) => `interface surface → ${(score * 100).toFixed(0)}%`,
+    note: (ctx, score) =>
+      score > 0.4
+        ? `APIs/SDKs exist — syscalls if you rename HTTP and squint.`
+        : `Few interfaces. The “syscall table” might be a contact form.`,
   },
   {
     id: "isolation",
@@ -303,7 +314,9 @@ const AXES: AxisDef[] = [
       };
     },
     note: (ctx, score) =>
-      `security hits=${ctx.signals.security} → ${(score * 100).toFixed(0)}%`,
+      score > 0.45
+        ? `Isolation talk shows up (${ctx.signals.security}×). Boundaries, allegedly.`
+        : `Everyone shares the vibes plane. Multi-tenant of the soul.`,
   },
   {
     id: "boot",
@@ -328,7 +341,10 @@ const AXES: AxisDef[] = [
         ],
       };
     },
-    note: (ctx, score) => `onboarding surface → ${(score * 100).toFixed(0)}%`,
+    note: (ctx, score) =>
+      score > 0.4
+        ? `There's a “boot” path: install → account → credit card.`
+        : `No boot sequence. Perhaps it was always already running in a deck.`,
   },
   {
     id: "posix",
@@ -356,7 +372,9 @@ const AXES: AxisDef[] = [
       };
     },
     note: (ctx, score) =>
-      `lineage hits openSource=${ctx.signals.openSource} → ${(score * 100).toFixed(0)}%`,
+      score > 0.5
+        ? `Unix/Linux/OS ancestry name-dropped. Ancestor worship detected.`
+        : `Genealogy: “founded in a slide deck, 20xx.”`,
   },
 ];
 
@@ -408,7 +426,7 @@ function confidenceFrom(
   }
   const base = den ? (num / den) * 100 : 0;
   const steps: ConfidenceStep[] = [
-    { label: "Weighted axis mean", delta: base, total: base },
+    { label: "Average of the vibe axes", delta: base, total: base },
   ];
   let total = base;
 
@@ -419,33 +437,35 @@ function confidenceFrom(
   };
 
   if (/\bkernel\.org\b|\blinux\.org\b|\bfreedesktop\b/i.test(ctx.blob)) {
-    adjust("Known kernel host (+25)", 25);
+    adjust("It's literally kernel.org energy (+25)", 25);
   }
   if (/\boperating system\b/i.test(ctx.blob) && ctx.signals.kernel > 0) {
-    adjust("“operating system” + kernel lexicon (+12)", 12);
+    adjust("Said “operating system” and meant it (+12)", 12);
   }
   if (ctx.signals.os > 0 && ctx.signals.saas > 3 && ctx.signals.kernel === 0) {
-    adjust("OS branding on SaaS page (+8)", 8);
+    adjust("Said OS on a SaaS page (+8, branding tax rebate)", 8);
   }
   if (ctx.signals.saas > 4 && ctx.signals.kernel === 0 && ctx.signals.os === 0) {
-    adjust("Heavy SaaS, no OS/kernel (−12)", -12);
+    adjust("Pure SaaS, zero kernel (−12)", -12);
   }
   if (ctx.probe && !ctx.probe.ok && ctx.kind === "url") {
-    adjust("Probe failed (−5)", -5);
+    adjust("Page wouldn't load, we guessed (−5)", -5);
   }
   if (/cloudflare/i.test(ctx.blob) && ctx.signals.os > 0) {
     const floor = 55;
-    if (total < floor) adjust(`Cloudflare+OS floor → ${floor}`, floor - total);
+    if (total < floor)
+      adjust(`Cloudflare said OS so floor is ${floor}%`, floor - total);
   }
   if (/\bemacs\b/i.test(ctx.blob)) {
     const floor = 62;
-    if (total < floor) adjust(`Emacs claim floor → ${floor}`, floor - total);
+    if (total < floor)
+      adjust(`Emacs diplomatic immunity → ${floor}%`, floor - total);
   }
 
   const confidence = Math.round(Math.min(96, Math.max(4, total)));
   if (confidence !== Math.round(total)) {
     steps.push({
-      label: `Clamped to ${confidence}%`,
+      label: `Reality clamp → ${confidence}%`,
       delta: confidence - total,
       total: confidence,
     });
@@ -466,60 +486,59 @@ function verdictFor(
     /cloudflare/i.test(ctx.blob) &&
     (ctx.signals.os > 0 || /workers|edge|cdn/i.test(ctx.blob))
   ) {
-    return `${name}: edge platform with OS-shaped branding`;
+    return `${name} is an edge platform that said the quiet part (“OS”) out loud`;
   }
   if (/\bemacs\b/i.test(ctx.blob)) {
-    return `${name} — OS by lifestyle, editor by paperwork`;
+    return `${name}: OS if you live there, editor if you have to file taxes`;
   }
   if (
     confidence >= 72 &&
     (ctx.signals.kernel > 0 || ctx.signals.openSource > 2)
   ) {
-    return `${name} scores like a real OS (kernel/lineage present)`;
+    return `${name} might actually be an OS — awkward for the bit`;
   }
   if (confidence >= 55 && ctx.signals.os > 0) {
-    return `${name} claims OS-hood; ${top?.label ?? "signals"} lead`;
+    return `${name} wants the OS title; ${top?.label ?? "vibes"} is doing PR`;
   }
   if (ctx.signals.saas > 3 && ctx.signals.kernel === 0) {
-    return `${name} is SaaS wearing a trench coat labeled "platform"`;
+    return `${name} is SaaS in a trench coat labeled “platform”`;
   }
   if (ctx.signals.browser > 2 && confidence < 50) {
-    return `${name}: browser-era software, not a bootloader`;
+    return `${name}: a website with ambition, not a bootloader`;
   }
   if (ctx.signals.cloud > 2 && ctx.signals.hardware < 1) {
-    return `${name} — cloud product, little hardware language`;
+    return `${name} lives in the cloud and has never met a CPU`;
   }
   if (confidence < 30) {
-    return `${name} fails OS checks (${low?.label ?? "axes"} lowest)`;
+    return `${name} is ${confidence}% OS — mostly ${low?.label ?? "not"}`;
   }
-  return `${name}: OS confidence ${confidence}% from measured signals`;
+  return `${name} clocks in at ${confidence}% operating-system-shaped`;
 }
 
 function subtitleFor(ctx: SenseCtx, confidence: number): string {
   const bits: string[] = [];
   if (ctx.probe?.ok && ctx.probe.title) {
-    bits.push(`Probed “${shortQuote(ctx.probe.title, 56)}”.`);
+    bits.push(`They went with “${shortQuote(ctx.probe.title, 52)}.”`);
   } else if (ctx.kind === "url" && ctx.probe && !ctx.probe.ok) {
     bits.push(
-      `Probe failed (${ctx.probe.error || "unreachable"}) — scoring claim/URL text only.`,
+      `Page wouldn't talk (${ctx.probe.error || "unreachable"}). Judging the aura instead.`,
     );
   } else if (ctx.kind === "claim") {
-    bits.push(`Claim-only analysis (no remote page).`);
+    bits.push(`No URL — just your words, exposed to daylight.`);
   }
   bits.push(
     confidence >= 50
-      ? `Weighted signals → OS-ward (${confidence}%).`
-      : `Weighted signals → not an OS (${confidence}%).`,
+      ? `Committee leans “kinda OS” at ${confidence}%.`
+      : `Committee leans “lol no” at ${confidence}%.`,
   );
-  if (ctx.host) bits.push(`Host: ${ctx.host}.`);
   return bits.join(" ");
 }
 
 function stampFor(confidence: number, ctx: SenseCtx): string {
-  if (!ctx.probe?.ok && ctx.kind === "url") return "PROBE DEGRADED";
-  if (confidence >= 75) return "OS-WARD";
-  if (confidence >= 55) return "AMBIGUOUS";
-  if (confidence >= 35) return "SKEPTICAL";
+  if (!ctx.probe?.ok && ctx.kind === "url") return "GHOSTED BY HTTP";
+  if (confidence >= 75) return "SUSPICIOUSLY OS";
+  if (confidence >= 55) return "IT'S COMPLICATED";
+  if (confidence >= 35) return "THIN ICE";
   return "NOT AN OS";
 }
 
@@ -527,20 +546,33 @@ function findingsFor(ctx: SenseCtx): string[] {
   const out: string[] = [];
   if (ctx.probe?.ok) {
     out.push(
-      `HTTP ${ctx.probe.status ?? "?"} · ${ctx.probe.bytes ?? 0} bytes · ${ctx.probe.finalUrl || ctx.subject}`,
+      `Snagged ${ctx.probe.bytes ?? 0} bytes of HTML like a raccoon in a dumpster (${ctx.probe.status ?? "?"}).`,
     );
-    if (ctx.probe.title) out.push(`Title: ${ctx.probe.title}`);
-    if (ctx.probe.description)
-      out.push(`Meta: ${shortQuote(ctx.probe.description, 140)}`);
-    if (ctx.probe.headings?.length)
-      out.push(`Headings: ${ctx.probe.headings.slice(0, 5).join(" · ")}`);
   } else if (ctx.kind === "url") {
     out.push(
-      `Could not load page${ctx.probe?.error ? `: ${ctx.probe.error}` : "."}`,
+      `Page said no${ctx.probe?.error ? ` (${ctx.probe.error})` : ""}. Cowards.`,
     );
   } else {
-    out.push(`Claim: “${shortQuote(ctx.subject, 100)}”`);
+    out.push(`You typed: “${shortQuote(ctx.subject, 100)}”. Brave.`);
   }
+
+  const s = ctx.signals;
+  const hot = (
+    [
+      [s.kernel, "kernel"],
+      [s.os, "OS"],
+      [s.saas, "SaaS"],
+      [s.cloud, "cloud"],
+      [s.pricing, "pricing"],
+      [s.ai, "AI"],
+    ] as [number, string][]
+  )
+    .filter(([n]) => n > 0)
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, 4)
+    .map(([n, k]) => `${k}×${n}`);
+  if (hot.length) out.push(`Loudest words: ${hot.join(", ")}.`);
+  else out.push(`The page said almost nothing OS-adjacent. Silence is also data.`);
   return out;
 }
 
@@ -548,27 +580,29 @@ function redFlagsFor(ctx: SenseCtx, criteria: Criterion[]): string[] {
   const flags: string[] = [];
   if (ctx.signals.os > 0 && ctx.signals.kernel === 0) {
     flags.push(
-      `OS wording (${ctx.signals.os}) without kernel/syscall hits (0).`,
+      `Said “OS” ${ctx.signals.os}× with zero kernel talk. That's not a product category, that's a tattoo.`,
     );
   }
   if (ctx.signals.pricing > 0 && ctx.signals.hardware === 0) {
     flags.push(
-      `Pricing hits (${ctx.signals.pricing}) with hardware hits = 0.`,
+      `Pricing page energy (${ctx.signals.pricing}×) but hardware is a stranger.`,
     );
   }
   if (ctx.signals.saas > 3) {
-    flags.push(`SaaS/dashboard hits = ${ctx.signals.saas}.`);
+    flags.push(
+      `SaaS/dashboard lexicon is doing cardio (${ctx.signals.saas} hits). Multi-tenant vibes, not ring‑0.`,
+    );
   }
   if (ctx.signals.platform > 2 && ctx.signals.schedule === 0) {
     flags.push(
-      `Platform hits (${ctx.signals.platform}) with schedule/process = 0.`,
+      `“Platform” ${ctx.signals.platform}×, processes 0×. Platforms used to mean something. Allegedly.`,
     );
   }
   if (ctx.probe?.ok && (ctx.probe.headings?.length ?? 0) === 0) {
-    flags.push(`No H1–H3 headings extracted from HTML.`);
+    flags.push(`No real headings — just marketing fog and a hero image of gradients.`);
   }
   if (!ctx.probe?.ok && ctx.kind === "url") {
-    flags.push(`Remote probe failed; signal set is partial.`);
+    flags.push(`Couldn't load the page. Judging based on the vibe of the URL. Fair? No. Fun? Yes.`);
   }
   const marketing = criteria.find((c) => c.id === "marketing");
   const kernel = criteria.find((c) => c.id === "kernel");
@@ -579,7 +613,7 @@ function redFlagsFor(ctx: SenseCtx, criteria: Criterion[]): string[] {
     kernel.score < 0.25
   ) {
     flags.push(
-      `Marketing axis ${(marketing.score * 100).toFixed(0)}% ≫ kernel axis ${(kernel.score * 100).toFixed(0)}%.`,
+      `Marketing score ${(marketing.score * 100).toFixed(0)}% vs kernel ${(kernel.score * 100).toFixed(0)}% — classic fake-OS signature.`,
     );
   }
   return flags;
@@ -590,18 +624,18 @@ function timelineFor(ctx: SenseCtx): { t: string; event: string }[] {
     {
       t: "1",
       event: ctx.probe?.ok
-        ? `Fetch OK — “${shortQuote(ctx.probe.title || ctx.host || "page", 50)}”`
+        ? `Opened “${shortQuote(ctx.probe.title || ctx.host || "page", 50)}”`
         : ctx.kind === "url"
-          ? `Fetch failed — ${ctx.probe?.error || "no body"}`
-          : `No fetch — claim text only`,
+          ? `Page ghosted us — ${ctx.probe?.error || "no body"}`
+          : `No page, only vibes`,
     },
     {
       t: "2",
-      event: `Counts os=${ctx.signals.os} kernel=${ctx.signals.kernel} hardware=${ctx.signals.hardware} schedule=${ctx.signals.schedule} saas=${ctx.signals.saas} cloud=${ctx.signals.cloud}`,
+      event: `Counted the snitches: os=${ctx.signals.os} kernel=${ctx.signals.kernel} saas=${ctx.signals.saas} cloud=${ctx.signals.cloud}`,
     },
     {
       t: "3",
-      event: `Score axes from counts → confidence (see breakdown)`,
+      event: `Rubber-stamped a percentage like it's science`,
     },
   ];
 }
@@ -629,43 +663,43 @@ function buildTree(
   const tests: Test[] = [
     {
       id: "t-os-kernel",
-      question: "OS or kernel lexicon present?",
+      question: "Did they even whisper “OS” or “kernel”?",
       measure: `os=${ctx.signals.os}, kernel=${ctx.signals.kernel}, sum=${ctx.signals.os + ctx.signals.kernel}`,
       threshold: "sum ≥ 1",
       pass: ctx.signals.os + ctx.signals.kernel >= 1,
     },
     {
       id: "t-kernel-axis",
-      question: "Kernel axis score high enough?",
-      measure: `kernel axis = ${(sc("kernel") * 100).toFixed(0)}%`,
-      threshold: "score ≥ 40%",
+      question: "Is the kernel cosplay convincing?",
+      measure: `kernel vibe = ${(sc("kernel") * 100).toFixed(0)}%`,
+      threshold: "≥ 40%",
       pass: sc("kernel") >= 0.4,
     },
     {
       id: "t-schedule",
-      question: "Scheduler/process language present?",
+      question: "Does anything get scheduled, or only meetings?",
       measure: `schedule hits=${ctx.signals.schedule}, axis=${(sc("schedule") * 100).toFixed(0)}%`,
       threshold: "hits ≥ 1 OR axis ≥ 35%",
       pass: ctx.signals.schedule >= 1 || sc("schedule") >= 0.35,
     },
     {
       id: "t-hardware",
-      question: "Hardware contact in copy?",
+      question: "Have they met a CPU in real life?",
       measure: `hardware hits=${ctx.signals.hardware}, axis=${(sc("hardware") * 100).toFixed(0)}%`,
       threshold: "hits ≥ 1 OR axis ≥ 35%",
       pass: ctx.signals.hardware >= 1 || sc("hardware") >= 0.35,
     },
     {
       id: "t-saas",
-      question: "SaaS/pricing dominant (anti-OS weight)?",
+      question: "Is this just a pricing page in a trench coat?",
       measure: `saas+pricing=${ctx.signals.saas + ctx.signals.pricing}`,
-      threshold: "sum ≥ 3 → yes (commercial surface)",
+      threshold: "sum ≥ 3 → yes, commercial fog",
       pass: ctx.signals.saas + ctx.signals.pricing >= 3,
     },
     {
       id: "t-final",
-      question: "Weighted confidence ≥ 50%?",
-      measure: `confidence = ${confidence}%`,
+      question: "Final vibe check ≥ 50%?",
+      measure: `score = ${confidence}%`,
       threshold: "≥ 50% → OS-ward",
       pass: confidence >= 50,
     },
@@ -674,7 +708,7 @@ function buildTree(
   const root: TreeNode = {
     id: "root",
     label: `Is ${shortQuote(ctx.displayName, 32)} an OS?`,
-    detail: "Measured decision path",
+    detail: "the only question that matters",
     outcome: "question",
     taken: true,
     children: [],
@@ -774,13 +808,7 @@ export function analyze(
     timeline: timelineFor(ctx),
     redFlags: redFlagsFor(ctx, criteria),
     findings: findingsFor(ctx),
-    methodology: [
-      "Fetch HTML → title, meta, headings, text sample",
-      "Count lexicon hits (OS, kernel, SaaS, …) on that text",
-      "Score 8 weighted axes from counts (formula per axis in stats)",
-      "Confidence = weighted mean + listed adjustments",
-      "Decision tree = ordered threshold tests on those measurements",
-    ],
+    methodology: [],
     probe: ctx.probe,
   };
 }
@@ -795,41 +823,41 @@ export function pipelineFor(subject: string): {
   return [
     {
       id: "ingest",
-      label: "Ingest subject",
-      blurb: kind === "url" ? "Normalize URL" : "Treat as free-form claim",
+      label: "Stare at the subject",
+      blurb: kind === "url" ? "Looks like a URL. Dangerous." : "Free-form nonsense. Perfect.",
       ms: 200,
     },
     {
       id: "probe",
-      label: "Fetch & parse page",
+      label: "Raid the webpage",
       blurb:
         kind === "url"
-          ? "Title, meta, headings, lexicon counts"
-          : "Skip remote fetch (not a URL)",
+          ? "Steal title, headings, incriminating words"
+          : "No page — pure claim energy",
       ms: kind === "url" ? 800 : 120,
     },
     {
       id: "lex",
-      label: "Score OS axes",
-      blurb: "Each axis = formula over measured hits",
+      label: "Count the snitches",
+      blurb: "OS, kernel, SaaS, pricing — who talked?",
       ms: 280,
     },
     {
       id: "tree",
-      label: "Walk decision tree",
-      blurb: "Threshold tests on measured values",
+      label: "Hold the inquisition",
+      blurb: "Yes/no questions with receipts",
       ms: 240,
     },
     {
       id: "radar",
-      label: "Project stats",
-      blurb: "Signal table + weighted confidence",
+      label: "Draw the vibe circle",
+      blurb: "Make it look expensive",
       ms: 160,
     },
     {
       id: "seal",
-      label: "Seal determination",
-      blurb: "Verdict from final confidence",
+      label: "Rubber-stamp a number",
+      blurb: "Science™",
       ms: 140,
     },
   ];

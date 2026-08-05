@@ -36,15 +36,15 @@ function shell(inner: string): string {
           <span class="brand__mark" aria-hidden="true"></span>
           <span class="brand__text">
             <span class="brand__name">Is it an OS?</span>
-            <span class="brand__sub">IIAO Laboratory</span>
+            <span class="brand__sub">legally not advice</span>
           </span>
         </a>
-        <span class="pill">pure chaos · peer-unreviewed</span>
+        <span class="pill">kernels optional · vibes mandatory</span>
       </header>
       ${inner}
       <footer class="footer">
-        <span>algor.ist / iiao · theatrical methodology</span>
-        <span>permalinks encode the subject · no backend ledger</span>
+        <span>algor.ist / iiao · if it boots in your heart, call a doctor</span>
+        <span>shareable /is/… links · no login, no refunds</span>
       </footer>
     </div>
     <div class="toast" id="toast" role="status"></div>
@@ -55,39 +55,39 @@ function homeView(): string {
   return shell(`
     <section class="hero">
       <div>
-        <p class="hero__kicker">Ministry of OS Determination</p>
+        <p class="hero__kicker">unofficial bureau of ring‑0 cosplay</p>
         <h1>Is it <em>an OS?</em></h1>
         <p class="hero__lead">
-          Paste a link to <strong>anything</strong> — a product, a repo, a rumor, a toaster.
-          We run a solemn, chaotic audit and stamp a confidence score.
-          Inspired by things that are absolutely not operating systems but said the quiet part with a product name.
+          Drop a link to <strong>anything</strong> — SaaS, a toaster, “Cloudflare OS,” your ex’s startup.
+          We read the page like a hostile systems committee and stamp how OS it is.
+          Serious charts. Unserious conclusions.
         </p>
       </div>
       <form class="compose" id="compose" autocomplete="off">
         <div class="compose__row">
           <label class="sr-only" for="subject">URL or claim</label>
           <input id="subject" name="subject" type="text" inputmode="url"
-            placeholder="https://anything.example — or free-form chaos"
+            placeholder="paste a URL, or type a crime against nomenclature"
             required maxlength="2048" />
-          <button class="btn btn--primary" type="submit">Determine</button>
+          <button class="btn btn--primary" type="submit">Roast it</button>
         </div>
-        <p class="compose__hint">We fetch the page, score real signals, then roast with citations · /is/&lt;token&gt; permalinks</p>
+        <p class="compose__hint">we actually open the link · results are shareable · your honor, it said “platform”</p>
         <div class="examples" id="examples">
           ${EXAMPLES.map((e) => `<button type="button" class="chip" data-ex="${esc(e)}">${esc(e)}</button>`).join("")}
         </div>
       </form>
       <div class="feature-grid">
         <article class="feature">
-          <h3>Decision trees</h3>
-          <p>Branching bureaucracy until comedy saturates. Chaos paths included free of charge.</p>
+          <h3>Bureaucracy, but funny</h3>
+          <p>Yes/no inquisitions with receipts. The tree has opinions and a rubber stamp.</p>
         </article>
         <article class="feature">
-          <h3>Instrument panel</h3>
-          <p>Radar, gauges, axis bars — as if rigor were a visual style guide.</p>
+          <h3>Charts with attitude</h3>
+          <p>Radar, gauges, hit counts — the aesthetic of rigor applied to nonsense branding.</p>
         </article>
         <article class="feature">
-          <h3>Permalinks</h3>
-          <p>Encode any subject in the path. Send the roast. No accounts. No mercy.</p>
+          <h3>Weaponized permalinks</h3>
+          <p>Send someone “proof” their product is 17% operating system. Friendship optional.</p>
         </article>
       </div>
     </section>
@@ -98,15 +98,15 @@ function pipelineView(subject: string): string {
   const steps = pipelineFor(subject);
   return shell(`
     <section>
-      <p class="hero__kicker">Case opening</p>
+      <p class="hero__kicker">opening the chaos window</p>
       <h1 class="verdict-title" style="font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.4rem);margin:0 0 1rem">
-        Analyzing subject…
+        Judging your link…
       </h1>
       <p class="subject-line" style="border:none;padding:0;margin:0 0 1rem;color:var(--muted)">${esc(subject)}</p>
       <div class="pipeline" id="pipeline">
         <div class="pipeline__head">
-          <span>IIAO pipeline</span>
-          <span id="pipe-status">running</span>
+          <span>ritual in progress</span>
+          <span id="pipe-status">vibing</span>
         </div>
         <ul class="pipeline__list">
           ${steps
@@ -129,30 +129,25 @@ function pipelineView(subject: string): string {
 }
 
 function reportView(a: Analysis): string {
-  const probeBits = a.probe?.ok
+  const exhibit = a.probe?.ok
     ? [
-        `title: ${a.probe.title ?? "—"}`,
-        `desc: ${a.probe.description ?? "—"}`,
-        `status: ${a.probe.status ?? "—"}`,
-        `final: ${a.probe.finalUrl ?? "—"}`,
-        a.probe.signals
-          ? `signals: os=${a.probe.signals.os} kernel=${a.probe.signals.kernel} saas=${a.probe.signals.saas} cloud=${a.probe.signals.cloud} hw=${a.probe.signals.hardware}`
-          : "",
+        a.probe.title ? `they titled it “${a.probe.title}”` : null,
+        a.probe.description ? `meta pitch: “${a.probe.description.slice(0, 120)}${(a.probe.description.length > 120 ? "…" : "")}”` : null,
         a.probe.headings?.length
-          ? `headings: ${a.probe.headings.slice(0, 5).join(" | ")}`
-          : "",
+          ? `headlines on parade: ${a.probe.headings.slice(0, 3).join(" · ")}`
+          : null,
       ]
         .filter(Boolean)
         .join("\n")
     : a.probe?.error
-      ? `probe: ${a.probe.error}`
-      : "probe: skipped / unavailable";
+      ? `the page ghosted us (${a.probe.error}) — judging the URL like a rumor`
+      : "no webpage — pure vibes from your claim";
 
   return shell(`
     <section>
       <div class="actions">
-        <button class="btn btn--ghost" type="button" id="btn-copy">Copy permalink</button>
-        <button class="btn btn--ghost" type="button" id="btn-again">New determination</button>
+        <button class="btn btn--ghost" type="button" id="btn-copy">Copy the roast</button>
+        <button class="btn btn--ghost" type="button" id="btn-again">Another victim</button>
         <a class="btn btn--ghost" href="${reportPath(a.subject)}" id="permalink">${esc(location.origin)}${reportPath(a.subject)}</a>
       </div>
 
@@ -160,7 +155,6 @@ function reportView(a: Analysis): string {
         <article class="card card--paper">
           <div class="meta-row">
             <span class="tag">${esc(a.caseId)}</span>
-            <span class="tag">${esc(a.kind)}</span>
             ${a.host ? `<span class="tag">${esc(a.host)}</span>` : ""}
           </div>
           <h1 class="verdict-title">${esc(a.verdict)}</h1>
@@ -169,65 +163,48 @@ function reportView(a: Analysis): string {
           <div class="stamp">${esc(a.stamp)}</div>
         </article>
         <article class="card gauge-card">
-          <iiao-gauge value="${a.confidence}" label="OS confidence"></iiao-gauge>
+          <iiao-gauge value="${a.confidence}" label="how OS is it"></iiao-gauge>
         </article>
       </div>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">What we actually found</h2>
-        <ul class="listy">
+        <h2 class="section-title">Exhibit A (from the page)</h2>
+        <pre class="probe-box">${esc(exhibit || "…emptiness…")}</pre>
+        <ul class="listy" style="margin-top:0.85rem">
           ${(a.findings ?? []).map((f) => `<li>${esc(f)}</li>`).join("")}
         </ul>
       </article>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Measured stats</h2>
+        <h2 class="section-title">The receipts</h2>
         <iiao-stats id="stats"></iiao-stats>
       </article>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Decision path (threshold tests)</h2>
+        <h2 class="section-title">The inquisition</h2>
         <iiao-tree id="tree"></iiao-tree>
       </article>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Axis radar (0–100 from formulas)</h2>
+        <h2 class="section-title">Vibe radar</h2>
         <iiao-radar id="radar"></iiao-radar>
       </article>
 
       <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">Axis scores + inputs</h2>
+        <h2 class="section-title">How the score got weird</h2>
         <iiao-bars id="bars"></iiao-bars>
       </article>
 
-      <div class="grid-2">
-        <article class="card">
-          <h2 class="section-title">Derived red flags</h2>
-          <ul class="listy listy--hot">
-            ${
-              a.redFlags.length
-                ? a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")
-                : "<li>None triggered from measured thresholds.</li>"
-            }
-          </ul>
-        </article>
-        <article class="card">
-          <h2 class="section-title">Pipeline</h2>
-          <div class="timeline">
-            ${a.timeline.map((t) => `
-              <div class="timeline__item">
-                <div class="timeline__t">${esc(t.t)}</div>
-                <div class="timeline__e">${esc(t.event)}</div>
-              </div>`).join("")}
-          </div>
-          <h2 class="section-title" style="margin-top:1.1rem">Raw probe</h2>
-          <pre class="probe-box">${esc(probeBits)}</pre>
-          <h2 class="section-title" style="margin-top:1.1rem">Methodology</h2>
-          <ul class="listy">
-            ${a.methodology.map((m) => `<li>${esc(m)}</li>`).join("")}
-          </ul>
-        </article>
-      </div>
+      <article class="card">
+        <h2 class="section-title">Crimes against OS-ness</h2>
+        <ul class="listy listy--hot">
+          ${
+            a.redFlags.length
+              ? a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")
+              : "<li>Shockingly clean. Suspicious.</li>"
+          }
+        </ul>
+      </article>
     </section>
   `);
 }
@@ -321,7 +298,7 @@ function bindReport(root: HTMLElement, a: Analysis) {
     const url = `${location.origin}${reportPath(a.subject)}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast("Permalink copied");
+      toast("Roast link copied. Be kind. Or don't.");
     } catch {
       toast(url);
     }
@@ -357,7 +334,6 @@ export async function renderApp(mount: HTMLElement) {
   const analysis = await runPipeline(mount, route.subject);
   if (token !== runToken) return;
 
-  // Ensure URL is canonical permalink form
   const path = reportPath(route.subject);
   if (location.pathname + location.search !== path) {
     history.replaceState({}, "", path);
