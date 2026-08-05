@@ -1,6 +1,8 @@
 /**
- * Comedy model: far-fetched things ARE operating systems.
- * Marketing “platforms” and “Cloudflare OS” energy are not.
+ * Short, deadpan punchlines — single-serving-site energy.
+ * Absurd things → YES with one clean analogy.
+ * Marketing platforms → NO with one dry line.
+ * Real OSes → YES, unfortunately.
  */
 import type { ProbeSignals, SubjectKind } from "./types";
 
@@ -16,15 +18,30 @@ export type ComedyCtx = {
   probeOk: boolean;
 };
 
-/** Physical / mundane / claim-shaped nonsense that deserves a noble OS reading. */
+export type JokeResult = {
+  answer: "YES" | "NO" | "KINDA";
+  confidence: number;
+  line: string;
+  sub?: string;
+};
+
 const ABSURD_RE =
-  /\b(shoe|sneaker|boot|sandal|sock|toaster|fridge|refrigerator|microwave|oven|kettle|mug|cup|chair|table|desk|sofa|couch|lamp|bulb|pencil|pen|notebook|calendar|umbrella|backpack|wallet|keys?|door|window|mirror|toothbrush|toothpaste|soap|towel|pillow|blanket|sandwich|pizza|banana|apple|coffee|tea|beer|wine|plant|cactus|cat|dog|hamster|bird|fish|rock|stone|brick|road|bridge|elevator|escalator|traffic light|parking meter|vending machine|atm|remote|remote control|tv|television|radio|clock|watch|alarm|bike|bicycle|car|bus|train|plane|boat|ship|hammer|screwdriver|wrench|nail|screw|tape|glue|sticker|meme|spreadsheet|inbox|email|slack|meeting|standup|stand-up|status page|todo|to-do|habit tracker)\b/i;
+  /\b(shoe|sneaker|boot|sandal|sock|toaster|fridge|refrigerator|microwave|oven|kettle|mug|cup|chair|table|desk|sofa|couch|lamp|bulb|pencil|pen|notebook|calendar|umbrella|backpack|wallet|keys?|door|window|mirror|toothbrush|toothpaste|soap|towel|pillow|blanket|sandwich|pizza|banana|apple|coffee|tea|beer|wine|plant|cactus|cat|dog|hamster|bird|fish|rock|stone|brick|road|bridge|elevator|escalator|traffic light|parking meter|vending machine|atm|remote|remote control|tv|television|radio|clock|watch|alarm|bike|bicycle|car|bus|train|plane|boat|ship|hammer|screwdriver|wrench|nail|screw|tape|glue|sticker|meme|spreadsheet|inbox|email|slack|meeting|standup|stand-up|todo|to-do|habit|group chat|chat)\b/i;
 
 const REAL_OS_RE =
-  /\b(linux|kernel\.org|freebsd|openbsd|netbsd|windows nt|macos|darwin|xnu|android|ios(?!\s*developer)|unix|gnu\/linux|reactos|haiku os|templeos)\b/i;
+  /\b(linux|kernel\.org|freebsd|openbsd|netbsd|windows|macos|darwin|android|ios|unix|gnu\/linux|reactos|templeos|haiku)\b/i;
 
 const MARKETING_HOST_RE =
-  /\b(cloudflare|vercel|netlify|heroku|datadog|stripe|salesforce|hubspot|notion\.so|slack\.com|asana|monday\.com|airtable|zendesk|intercom|twilio|okta|auth0|supabase|firebase)\b/i;
+  /\b(cloudflare|vercel|netlify|heroku|datadog|stripe|salesforce|hubspot|notion|asana|monday|airtable|zendesk|intercom|twilio|okta|auth0|supabase|firebase)\b/i;
+
+export function spice(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
 
 export function classify(ctx: ComedyCtx): ComedyMode {
   if (REAL_OS_RE.test(ctx.blob) || REAL_OS_RE.test(ctx.subject)) return "real_os";
@@ -36,245 +53,210 @@ export function classify(ctx: ComedyCtx): ComedyMode {
     ctx.signals.platform +
     ctx.signals.cloud +
     ctx.signals.ai;
-  const saidOsNoKernel = ctx.signals.os > 0 && ctx.signals.kernel === 0;
   if (
     MARKETING_HOST_RE.test(ctx.blob) ||
     (corp >= 6 && ctx.signals.kernel === 0) ||
-    (saidOsNoKernel && corp >= 3)
+    (ctx.signals.os > 0 && ctx.signals.kernel === 0 && corp >= 3)
   ) {
     return "marketing";
   }
 
   if (ABSURD_RE.test(ctx.subject) || ABSURD_RE.test(ctx.displayName)) return "absurd";
-  // Free-form claim with almost no tech lexicon
-  if (ctx.kind === "claim" && corp + ctx.signals.kernel + ctx.signals.os < 2) {
+  if (ctx.kind === "claim" && corp + ctx.signals.kernel + ctx.signals.os < 2)
     return "absurd";
-  }
-  // Failed probe on a non-corp looking host → treat claim-like
-  if (!ctx.probeOk && ctx.kind === "url" && corp < 2 && ctx.signals.kernel === 0) {
-    if (!/\.(io|dev|app|cloud|tech)\b/i.test(ctx.host ?? "")) return "absurd";
-  }
-
   return "generic";
 }
 
-/** Hash-stable 0..1 for deterministic spice. */
-export function spice(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
+function pick<T>(sp: number, items: T[]): T {
+  return items[Math.floor(sp * items.length) % items.length]!;
 }
 
-export function confidenceFor(mode: ComedyMode, ctx: ComedyCtx): {
-  confidence: number;
-  steps: { label: string; delta: number; total: number }[];
-} {
-  const sp = spice(ctx.subject.toLowerCase());
-  const steps: { label: string; delta: number; total: number }[] = [];
-  let total = 0;
+/** One killer line for absurd objects. */
+function absurdLine(name: string, subject: string, sp: number): string {
+  const s = (subject + " " + name).toLowerCase();
+  const n = name.trim() || "It";
 
-  const set = (label: string, v: number) => {
-    const delta = v - total;
-    total = v;
-    steps.push({ label, delta, total });
-  };
+  if (/\bshoe|sneaker|sandal|boot|sock\b/.test(s)) {
+    return pick(sp, [
+      `${n} boots, preempts socks, and never ships a status page.`,
+      `The sole is ring 0. Everything else is just drivers for the sidewalk.`,
+      `${n} schedules steps in hard real time. Your calendar wishes it could.`,
+    ]);
+  }
+  if (/\btoaster|oven|microwave|kettle|fridge\b/.test(s)) {
+    return pick(sp, [
+      `${n} runs a privileged heating loop and panics into breakfast.`,
+      `Crumbs are orphaned inodes. Bagel mode is a realtime priority class.`,
+      `Power-on self-test: the little light. If it fails, civilization ends.`,
+    ]);
+  }
+  if (/\bcalendar|meeting|standup|inbox|email|slack|todo|group chat|chat\b/.test(s)) {
+    return pick(sp, [
+      `${n} is a scheduler with worse UX than cron and stronger opinions than systemd.`,
+      `It preempts your life with soft IRQs called “invites.”`,
+      `You are the process. Decline is SIGTERM. No-show is OOM.`,
+    ]);
+  }
+  if (/\bcat|dog|hamster|bird|fish\b/.test(s)) {
+    return pick(sp, [
+      `${n} runs instinct in kernel mode and treats you like a guest account.`,
+      `Naps have higher priority than your meetings. Correctly.`,
+      `Food bowl is the bootloader. Zoomies are hardware interrupts.`,
+    ]);
+  }
+  if (/\bcar|bus|train|bike|bicycle\b/.test(s)) {
+    return pick(sp, [
+      `Ignition is boot. Traffic is the global lock. You're not realtime.`,
+      `${n} abstracts roads so your plans don't segfault into a ditch.`,
+    ]);
+  }
+
+  return pick(sp, [
+    `${n} manages resources, time, and mild regret — that's an OS with better branding.`,
+    `${n} boots when you start caring and never takes writeups. Elite uptime culture.`,
+    `If it coordinates chaos so the rest of life can run, it's an OS. ${n} qualifies.`,
+    `${n} sits between you and reality. Middleware for existence. OS enough.`,
+  ]);
+}
+
+function marketingLine(name: string, sp: number): string {
+  return pick(sp, [
+    `${n(name)} is a website that wants to be infrastructure when it grows up.`,
+    `Lots of “platform.” Zero kernel. The shoe is laughing.`,
+    `${n(name)} boots straight into a pricing table. That's sales, not init.`,
+    `Bold of them to say OS without shipping anything that schedules a process.`,
+    `${n(name)} has more gradients than syscalls. Not an OS. A mood.`,
+  ]);
+}
+
+function n(s: string): string {
+  return s.trim() || "This";
+}
+
+function realLine(name: string, sp: number): string {
+  return pick(sp, [
+    `Yes. A real one. Awkward for the bit, but here we are.`,
+    `${n(name)} has a kernel on purpose. The shoe was more fun.`,
+    `Correct, boring, and 100% less interesting than a toaster.`,
+  ]);
+}
+
+function genericLine(name: string, sp: number, conf: number): string {
+  if (conf >= 55) {
+    return pick(sp, [
+      `${n(name)} can be an OS if we let poetry into the kernel. We do.`,
+      `Not a fraud, not a textbook. ${conf}% OS on vibes and structure.`,
+    ]);
+  }
+  return pick(sp, [
+    `${n(name)} is closer to an app than an OS. The shoe remains undefeated.`,
+    `Nice software. Not an operating system. We checked under the pricing page.`,
+  ]);
+}
+
+export function jokeFor(ctx: ComedyCtx): JokeResult {
+  const mode = classify(ctx);
+  const sp = spice(ctx.subject.toLowerCase() + "|" + ctx.displayName.toLowerCase());
+  const name = ctx.displayName;
 
   if (mode === "absurd") {
-    // High: shoes, toasters, calendars are obviously OSes
-    set("far-fetched systems reading", 72 + sp * 18);
-    if (ABSURD_RE.test(ctx.subject)) set("mundane object bonus", total + 6);
-    if (ctx.kind === "claim") set("no website = pure OS energy", total + 4);
-  } else if (mode === "marketing") {
-    // Low: SaaS that said platform/OS
-    set("corporate landing page baseline", 18 + sp * 10);
-    if (ctx.signals.os > 0 && ctx.signals.kernel === 0)
-      set("said OS without a kernel (−)", total - 6);
-    if (ctx.signals.pricing + ctx.signals.saas >= 4)
-      set("pricing-page tax (−)", total - 5);
-    if (MARKETING_HOST_RE.test(ctx.blob)) set("known platform cosplayer (−)", total - 4);
-  } else if (mode === "real_os") {
-    set("unfortunately this one is real", 88 + sp * 6);
-  } else {
-    // generic web thing
-    set("generic software object", 38 + sp * 16);
-    if (ctx.signals.kernel > 0) set("tripped over a kernel word", total + 12);
-    if (ctx.signals.saas > 3) set("SaaS drag (−)", total - 10);
-  }
-
-  const confidence = Math.round(Math.min(97, Math.max(5, total)));
-  if (Math.abs(confidence - total) > 0.01) {
-    steps.push({
-      label: "rounded for the courts",
-      delta: confidence - total,
-      total: confidence,
-    });
-  }
-  return { confidence, steps };
-}
-
-export type Analogy = { boot: string; kernel: string; scheduler: string; fs: string; userspace: string; syscall: string };
-
-export function analogiesFor(ctx: ComedyCtx): Analogy {
-  const n = ctx.displayName.replace(/\s+/g, " ").trim() || "it";
-  const sub = ctx.subject.toLowerCase();
-  const sp = spice(sub);
-
-  if (/\bshoe|sneaker|sandal|boot|sock\b/i.test(sub + n)) {
+    const confidence = Math.round(78 + sp * 16);
     return {
-      boot: "Boot sequence = putting it on. POST beeps are your knees.",
-      kernel: "The sole is ring‑0: everything else is drivers for sidewalk I/O.",
-      scheduler: "It pre-empts socks and schedules steps with hard real-time guarantees.",
-      fs: "Laces are a doubly-linked list. Knots are fsync.",
-      userspace: "Toes are user processes. The pinky is a zombie process.",
-      syscall: "syscall: step() → ERODE_SOUL; open(/dev/puddle) may block.",
-    };
-  }
-  if (/\btoaster|oven|microwave|kettle|fridge|microwave\b/i.test(sub + n)) {
-    return {
-      boot: "Power-on self-test: the little light. If it fails, you starve.",
-      kernel: "Heating element is the kernel — privileged, hot, poorly documented.",
-      scheduler: "Pop is a hardware interrupt. Bagel mode is a realtime priority class.",
-      fs: "Slots are mount points. Crumbs are orphaned inodes.",
-      userspace: "Bread is userspace. Burnt toast is a kernel panic you can eat.",
-      syscall: "ioctl(TOAST, BROWNNESS) — undefined behavior after 4 minutes.",
-    };
-  }
-  if (/\bcalendar|meeting|standup|inbox|email|slack|todo\b/i.test(sub + n)) {
-    return {
-      boot: "Morning open is boot. Coffee is init.",
-      kernel: "The calendar kernel enforces preemption via guilt.",
-      scheduler: "It is literally a scheduler. CFS for adults.",
-      fs: "Recurring events are hard links. Declined invites are tombstones.",
-      userspace: "You are the process. Cancel culture is OOM killer.",
-      syscall: "sched_yield() is “sorry, can we push this?”",
-    };
-  }
-  if (/\bcat|dog|hamster|bird|fish\b/i.test(sub + n)) {
-    return {
-      boot: "Wake-up is boot. Food bowl is the bootloader.",
-      kernel: "Instinct is ring‑0. Training is a buggy userspace daemon.",
-      scheduler: "Nap priorities dominate. Zoomies are soft IRQs.",
-      fs: "The house is a filesystem. Hair is write amplification.",
-      userspace: "You think you're root. You're a guest account with treat privileges.",
-      syscall: "write(/dev/lap, self) — may return EBUSY.",
-    };
-  }
-  if (/\bcar|bus|train|bike|bicycle\b/i.test(sub + n)) {
-    return {
-      boot: "Ignition is boot. Check-engine is dmesg.",
-      kernel: "ECU/engine is the kernel. Oil is memory pressure.",
-      scheduler: "Traffic lights are the global scheduler. You are not realtime.",
-      fs: "Roads are block devices. Potholes are bad sectors.",
-      userspace: "Passengers are processes. The GPS is a lying oracle.",
-      syscall: "ioctl(HORN) — denied in HOAs.",
+      answer: "YES",
+      confidence,
+      line: absurdLine(name, ctx.subject, sp),
+      sub: pick(sp, [
+        "Higher than most things with OS in the name.",
+        "Committed to the bit. Correctly.",
+        "Systems design is just metaphor with extra steps.",
+      ]),
     };
   }
 
-  // Generic far-fetched template, rotated by spice
-  const templates: Analogy[] = [
-    {
-      boot: `${n} boots whenever you start caring about it. That's init.`,
-      kernel: `At the core of ${n} is a privileged loop that never yields — classic kernel.`,
-      scheduler: `${n} schedules attention, time, and mild regret with fair-share vibes.`,
-      fs: `State lives in ${n} the way files live on disk: poorly organized, emotionally permanent.`,
-      userspace: `Everything you do with ${n} is userspace. Root is whoever paid.`,
-      syscall: `The only syscall is use(${n}) → sometimes EAGAIN.`,
-    },
-    {
-      boot: `Power-on for ${n} is the moment it enters the chat.`,
-      kernel: `${n} abstracts hardware (reality) so apps (your plans) don't segfault.`,
-      scheduler: `It preempts other hobbies. Nice value: -20.`,
-      fs: `Memories of ${n} are a write-ahead log you never compact.`,
-      userspace: `Plugins for ${n} include “hope” and “copium.”`,
-      syscall: `mmap(life) with ${n} as the backing store.`,
-    },
-    {
-      boot: `${n} has a bootloader: the story you tell about why you need it.`,
-      kernel: `Isolation: ${n} keeps wet things away from dry things. Security through topology.`,
-      scheduler: `Interrupts arrive as notifications, emails, or physical pain.`,
-      fs: `Permissions on ${n}: rwx for you, --- for everyone you live with.`,
-      userspace: `GUI is optional. CLI is “just look at it.”`,
-      syscall: `poll() on ${n} returns POLLIN when drama is ready.`,
-    },
-  ];
-  return templates[Math.floor(sp * templates.length)]!;
-}
+  if (mode === "marketing") {
+    const confidence = Math.round(12 + sp * 18);
+    return {
+      answer: "NO",
+      confidence,
+      line: marketingLine(name, sp),
+      sub: pick(sp, [
+        "Try a shoe. Better process model.",
+        "We believe in you. As a website.",
+        "Come back when you schedule something that isn't a demo.",
+      ]),
+    };
+  }
 
-export function absurdAxisNotes(a: Analogy): Record<string, string> {
+  if (mode === "real_os") {
+    const confidence = Math.round(90 + sp * 6);
+    return {
+      answer: "YES",
+      confidence,
+      line: realLine(name, sp),
+      sub: "No stretch required. Slightly disappointing.",
+    };
+  }
+
+  const confidence = Math.round(36 + sp * 28);
+  const answer: JokeResult["answer"] =
+    confidence >= 58 ? "KINDA" : confidence >= 48 ? "KINDA" : "NO";
   return {
-    kernel: a.kernel,
-    schedule: a.scheduler,
-    hardware: a.boot,
-    marketing: "No pricing page. Pure. Uncorrupted. OS energy.",
-    syscall: a.syscall,
-    isolation: a.userspace,
-    boot: a.boot,
-    posix: a.fs,
+    answer: confidence >= 55 ? "KINDA" : answer,
+    confidence,
+    line: genericLine(name, sp, confidence),
+    sub:
+      confidence >= 55
+        ? "Poetry was admitted into evidence."
+        : "The committee wants a nap.",
   };
 }
 
-export function marketingRoast(ctx: ComedyCtx, confidence: number): string[] {
-  const name = ctx.displayName;
-  const lines: string[] = [
-    `${name} is trying so hard to be infrastructure that it forgot to be an operating system.`,
-  ];
-  if (ctx.signals.os > 0 && ctx.signals.kernel === 0) {
-    lines.push(
-      `They said “OS” ${ctx.signals.os}× and “kernel” never. That's not a stack. That's a brand deck with impostor syndrome.`,
-    );
-  }
-  lines.push(
-    `A shoe has a better process model than this. The shoe boots. This one redirects to /pricing.`,
-  );
-  if (ctx.signals.cloud + ctx.signals.platform >= 3) {
-    lines.push(
-      `“Platform,” “edge,” “cloud” — lots of prepositions, zero ring‑0. ${confidence}% OS, mostly for legal reasons.`,
-    );
-  }
-  lines.push(
-    `Final reading: not an OS. A website that cosplays sysadmin on LinkedIn.`,
-  );
-  return lines.slice(0, 5);
-}
-
-export function absurdRoast(ctx: ComedyCtx, a: Analogy, confidence: number): string[] {
-  const name = ctx.displayName;
-  return [
-    `Yes. ${name} is an operating system. Court is adjourned.`,
-    a.boot,
-    a.kernel,
-    a.scheduler,
-    `${a.fs} ${a.userspace}`,
-    `We rate it ${confidence}% OS — higher than most things that put “OS” in the product name.`,
-  ].slice(0, 5);
-}
-
-export function realOsRoast(ctx: ComedyCtx, confidence: number): string[] {
-  const name = ctx.displayName;
-  return [
-    `${name} is, tragically, an actual operating system. The bit is ruined.`,
-    `No far-fetched analogy required. It has a kernel on purpose. Boring. Correct. ${confidence}%.`,
-    `Compare to a shoe: the shoe is funnier. This one just… works (sometimes).`,
-  ];
-}
-
-export function genericRoast(ctx: ComedyCtx, confidence: number): string[] {
-  const name = ctx.displayName;
-  const a = analogiesFor(ctx);
-  if (confidence >= 55) {
+/** Axis scores for optional deep view — still comedy-shaped. */
+export function axisScores(mode: ComedyMode): { id: string; label: string; score: number; note: string }[] {
+  if (mode === "absurd") {
     return [
-      `${name} can be an OS if we allow poetry into systems design. We do.`,
-      a.kernel,
-      a.scheduler,
-      `${confidence}% — not Cloudflare-OS levels of fraud, not kernel.org levels of homework.`,
+      { id: "kernel", label: "Kernel energy", score: 0.9, note: "Something privileged is running." },
+      { id: "schedule", label: "Scheduling", score: 0.92, note: "Time gets ordered. Barely." },
+      { id: "hardware", label: "Touches reality", score: 0.88, note: "Physical layer: undefeated." },
+      { id: "marketing", label: "Marketing fog", score: 0.12, note: "Refreshingly un-SaaS." },
+      { id: "syscall", label: "Interface", score: 0.85, note: "use() returns success sometimes." },
+      { id: "isolation", label: "Isolation", score: 0.8, note: "Keeps wet off dry." },
+      { id: "boot", label: "Boot ritual", score: 0.94, note: "It starts. That's init." },
+      { id: "posix", label: "Lineage", score: 0.7, note: "Spiritually UNIX, legally a joke." },
+    ];
+  }
+  if (mode === "marketing") {
+    return [
+      { id: "kernel", label: "Kernel energy", score: 0.12, note: "Missing." },
+      { id: "schedule", label: "Scheduling", score: 0.25, note: "Only demos." },
+      { id: "hardware", label: "Touches reality", score: 0.15, note: "Cloud said no." },
+      { id: "marketing", label: "Marketing fog", score: 0.9, note: "Maximum density." },
+      { id: "syscall", label: "Interface", score: 0.55, note: "HTTP counts, kinda." },
+      { id: "isolation", label: "Isolation", score: 0.4, note: "Multi-tenant vibes." },
+      { id: "boot", label: "Boot ritual", score: 0.5, note: "Sign up → credit card." },
+      { id: "posix", label: "Lineage", score: 0.1, note: "Born in a deck." },
+    ];
+  }
+  if (mode === "real_os") {
+    return [
+      { id: "kernel", label: "Kernel energy", score: 0.95, note: "Present on purpose." },
+      { id: "schedule", label: "Scheduling", score: 0.9, note: "Actual processes." },
+      { id: "hardware", label: "Touches reality", score: 0.85, note: "Drivers exist." },
+      { id: "marketing", label: "Marketing fog", score: 0.2, note: "Mercifully low." },
+      { id: "syscall", label: "Interface", score: 0.9, note: "The real kind." },
+      { id: "isolation", label: "Isolation", score: 0.85, note: "Rings and all." },
+      { id: "boot", label: "Boot ritual", score: 0.9, note: "You know the one." },
+      { id: "posix", label: "Lineage", score: 0.95, note: "Ancestors approve." },
     ];
   }
   return [
-    `${name} is mostly software cosplay.`,
-    a.boot,
-    `At ${confidence}% it's more “app” than “OS,” unless you count vibes as syscalls.`,
+    { id: "kernel", label: "Kernel energy", score: 0.4, note: "Unclear." },
+    { id: "schedule", label: "Scheduling", score: 0.45, note: "Maybe." },
+    { id: "hardware", label: "Touches reality", score: 0.35, note: "Optional." },
+    { id: "marketing", label: "Marketing fog", score: 0.5, note: "Some." },
+    { id: "syscall", label: "Interface", score: 0.5, note: "Buttons." },
+    { id: "isolation", label: "Isolation", score: 0.4, note: "Tabs." },
+    { id: "boot", label: "Boot ritual", score: 0.45, note: "Open app." },
+    { id: "posix", label: "Lineage", score: 0.3, note: "Distant cousin." },
   ];
 }

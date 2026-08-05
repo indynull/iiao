@@ -1,31 +1,14 @@
 import { analyze } from "./analyze/engine";
 import type { Analysis, ProbeResult } from "./analyze/types";
 import { navigate, parseLocation, reportPath } from "./routes";
-import "./viz/gauge";
-import "./viz/radar";
-import "./viz/tree";
-import "./viz/bars";
-import type { IiaoRadar } from "./viz/radar";
-import type { IiaoTree } from "./viz/tree";
-import type { IiaoBars } from "./viz/bars";
 
 const EXAMPLES = [
   "a shoe",
   "my toaster",
+  "the group chat",
   "https://www.cloudflare.com/",
   "https://kernel.org/",
-  "the group chat",
   "emacs",
-];
-
-const LOADING_LINES = [
-  "asking Multics if this counts…",
-  "checking for a bootloader (emotional)…",
-  "scanning for the word “platform”…",
-  "consulting three raccoons in a trench coat…",
-  "measuring ring‑0 cosplay density…",
-  "negotiating with the marketing department…",
-  "looking for a kernel under the pricing table…",
 ];
 
 function esc(s: string): string {
@@ -38,21 +21,12 @@ function esc(s: string): string {
 
 function shell(inner: string): string {
   return `
-    <div class="shell">
-      <header class="topbar">
-        <a class="brand" href="/" data-nav="/">
-          <span class="brand__mark" aria-hidden="true"></span>
-          <span class="brand__text">
-            <span class="brand__name">Is it an OS?</span>
-            <span class="brand__sub">no it isn't (probably)</span>
-          </span>
-        </a>
-        <span class="pill">free judgments · paid therapy not included</span>
-      </header>
+    <div class="page">
       ${inner}
-      <footer class="footer">
-        <span>algor.ist · not a real standards body</span>
-        <span>share the link · ruin a product meeting</span>
+      <footer class="foot">
+        <a href="/" data-nav="/">is it an os?</a>
+        <span class="foot__dot">·</span>
+        <span>a tiny judgment engine</span>
       </footer>
     </div>
     <div class="toast" id="toast" role="status"></div>
@@ -61,152 +35,58 @@ function shell(inner: string): string {
 
 function homeView(): string {
   return shell(`
-    <section class="hero">
-      <div>
-        <p class="hero__kicker">the internet's least useful standards body</p>
-        <h1>Is it <em>an OS?</em></h1>
-        <p class="hero__lead">
-          Paste a link. We will decide — with charts — whether it's an operating system
-          or just a website that said something unhinged in a press release.
-        </p>
-      </div>
-      <form class="compose" id="compose" autocomplete="off">
-        <div class="compose__row">
-          <label class="sr-only" for="subject">URL or claim</label>
-          <input id="subject" name="subject" type="text" inputmode="url"
-            placeholder="https://your-favorite-crime.com"
-            required maxlength="2048" />
-          <button class="btn btn--primary" type="submit">Judge</button>
-        </div>
-        <p class="compose__hint">works on products, repos, toasters, and lies</p>
-        <div class="examples" id="examples">
-          ${EXAMPLES.map((e) => `<button type="button" class="chip" data-ex="${esc(e)}">${esc(e)}</button>`).join("")}
-        </div>
+    <main class="stage stage--home">
+      <h1 class="title">Is it an OS?</h1>
+      <p class="tagline">Paste anything. Get a serious answer for a silly question.</p>
+      <form class="box" id="compose" autocomplete="off">
+        <label class="sr-only" for="subject">Thing</label>
+        <input id="subject" name="subject" type="text" inputmode="url"
+          placeholder="a shoe, a URL, your calendar…"
+          required maxlength="2048" autofocus />
+        <button type="submit">Ask</button>
       </form>
-    </section>
+      <div class="examples" id="examples">
+        ${EXAMPLES.map(
+          (e) =>
+            `<button type="button" class="ex" data-ex="${esc(e)}">${esc(e)}</button>`,
+        ).join("")}
+      </div>
+    </main>
   `);
 }
 
-function pipelineView(subject: string): string {
+function loadingView(subject: string): string {
   return shell(`
-    <section class="loading">
-      <p class="hero__kicker">hold please</p>
-      <h1 class="verdict-title" style="font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.6rem);margin:0 0 0.75rem">
-        Deciding…
-      </h1>
-      <p class="loading__subject">${esc(subject)}</p>
-      <p class="loading__line" id="load-line">${esc(LOADING_LINES[0]!)}</p>
-      <div class="loading__bar" aria-hidden="true"><span></span></div>
-    </section>
+    <main class="stage stage--load">
+      <p class="thinking" id="think">thinking…</p>
+      <p class="subject-quiet">${esc(subject)}</p>
+    </main>
   `);
 }
 
-function signalChips(a: Analysis): string {
-  const funny: Record<string, string> = {
-    os: "said OS",
-    kernel: "kernel cosplay",
-    hardware: "touched metal",
-    schedule: "has processes?",
-    platform: "platform™",
-    saas: "SaaS energy",
-    pricing: "pricing page",
-    cloud: "cloud vibes",
-    browser: "it's a website",
-    security: "security theater",
-    openSource: "open source aura",
-    ai: "AI-washed",
-  };
-  const chips = (a.signalStats ?? [])
-    .filter((s) => s.count > 0)
-    .sort((x, y) => y.count - x.count)
-    .slice(0, 8)
-    .map(
-      (s) =>
-        `<span class="schip"><b>${s.count}×</b> ${esc(funny[s.key] ?? s.label)}</span>`,
-    )
-    .join("");
-  return chips || `<span class="schip schip--empty">said nothing useful</span>`;
+function answerClass(v: string): string {
+  if (v === "YES") return "answer--yes";
+  if (v === "NO") return "answer--no";
+  return "answer--kinda";
 }
 
 function reportView(a: Analysis): string {
-  const roast = (a.roast?.length ? a.roast : a.findings) ?? [];
-  const hotCriteria = [...a.criteria]
-    .sort((x, y) => Math.abs(y.score - 0.5) - Math.abs(x.score - 0.5))
-    .slice(0, 4);
+  const answer = a.verdict; // YES | NO | KINDA
+  const line = a.subtitle;
+  const sub = a.stamp;
 
   return shell(`
-    <section>
-      <div class="actions">
-        <button class="btn btn--ghost" type="button" id="btn-copy">Share this insult</button>
-        <button class="btn btn--ghost" type="button" id="btn-again">Judge something else</button>
+    <main class="stage stage--result">
+      <p class="about">${esc(a.subject)}</p>
+      <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
+      <p class="line">${esc(line)}</p>
+      ${sub ? `<p class="subline">${esc(sub)}</p>` : ""}
+      <p class="pct">${a.confidence}%</p>
+      <div class="row">
+        <button type="button" class="btn" id="btn-copy">Share</button>
+        <button type="button" class="btn btn--ghost" id="btn-again">Again</button>
       </div>
-
-      <div class="report-head">
-        <article class="card card--paper">
-          <div class="meta-row">
-            ${a.host ? `<span class="tag">${esc(a.host)}</span>` : ""}
-            <span class="tag">${a.confidence}% OS</span>
-          </div>
-          <h1 class="verdict-title">${esc(a.verdict)}</h1>
-          <p class="verdict-sub">${esc(a.subtitle)}</p>
-          <div class="subject-line">${esc(a.subject)}</div>
-          <div class="stamp">${esc(a.stamp)}</div>
-        </article>
-        <article class="card gauge-card">
-          <iiao-gauge value="${a.confidence}" label="os-ness"></iiao-gauge>
-        </article>
-      </div>
-
-      <article class="card card--roast" style="margin-bottom:1rem">
-        <div class="roast">
-          ${roast.map((line) => `<p class="roast__p">${esc(line)}</p>`).join("")}
-        </div>
-        <div class="schips" style="margin-top:1.1rem">${signalChips(a)}</div>
-      </article>
-
-      ${
-        a.redFlags.length
-          ? `<article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">hot takes</h2>
-        <ul class="listy listy--hot">
-          ${a.redFlags.map((f) => `<li>${esc(f)}</li>`).join("")}
-        </ul>
-      </article>`
-          : ""
-      }
-
-      <article class="card" style="margin-bottom:1rem">
-        <h2 class="section-title">awkward questions</h2>
-        <iiao-tree id="tree"></iiao-tree>
-      </article>
-
-      <div class="grid-2">
-        <article class="card">
-          <h2 class="section-title">vibe circle</h2>
-          <iiao-radar id="radar"></iiao-radar>
-        </article>
-        <article class="card">
-          <h2 class="section-title">scoreboard</h2>
-          <div class="bars" id="mini-bars">
-            ${hotCriteria
-              .map(
-                (c, i) => `
-              <div class="bar-row" style="--i:${i}">
-                <div class="bar-row__meta">
-                  <span class="bar-row__label">${esc(c.label)}</span>
-                  <span class="bar-row__score">${Math.round(c.score * 100)}</span>
-                </div>
-                <div class="bar-row__track">
-                  <div class="bar-row__fill" style="--w:${c.score}"></div>
-                </div>
-                <p class="bar-row__note">${esc(c.note)}</p>
-              </div>`,
-              )
-              .join("")}
-          </div>
-        </article>
-      </div>
-    </section>
+    </main>
   `);
 }
 
@@ -215,7 +95,7 @@ function toast(msg: string) {
   if (!el) return;
   el.textContent = msg;
   el.classList.add("show");
-  window.setTimeout(() => el.classList.remove("show"), 2200);
+  window.setTimeout(() => el.classList.remove("show"), 2000);
 }
 
 async function probeUrl(subject: string): Promise<ProbeResult | null> {
@@ -226,7 +106,7 @@ async function probeUrl(subject: string): Promise<ProbeResult | null> {
     if (!res.ok) return { ok: false, error: `http ${res.status}` };
     return (await res.json()) as ProbeResult;
   } catch {
-    return { ok: false, error: "unreachable" };
+    return null;
   }
 }
 
@@ -234,18 +114,22 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function runLoading(root: HTMLElement, subject: string): Promise<Analysis> {
-  const lineEl = root.querySelector("#load-line");
-  let i = 0;
-  const tick = window.setInterval(() => {
-    i = (i + 1) % LOADING_LINES.length;
-    if (lineEl) lineEl.textContent = LOADING_LINES[i]!;
-  }, 700);
+const THINKS = [
+  "thinking…",
+  "consulting the shoe council…",
+  "checking for a kernel…",
+  "almost…",
+];
 
-  const probePromise = probeUrl(subject);
-  // Minimum comedy delay so the lines can land
-  const [, probe] = await Promise.all([sleep(1600), probePromise]);
-  window.clearInterval(tick);
+async function runLoad(root: HTMLElement, subject: string): Promise<Analysis> {
+  const el = root.querySelector("#think");
+  let i = 0;
+  const t = window.setInterval(() => {
+    i = (i + 1) % THINKS.length;
+    if (el) el.textContent = THINKS[i]!;
+  }, 450);
+  const [, probe] = await Promise.all([sleep(900), probeUrl(subject)]);
+  window.clearInterval(t);
   return analyze(subject, probe);
 }
 
@@ -260,24 +144,18 @@ function bindHome(root: HTMLElement) {
   });
   root.querySelectorAll<HTMLButtonElement>("[data-ex]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const v = btn.dataset.ex ?? "";
-      if (input) input.value = v;
-      navigate(reportPath(v));
+      navigate(reportPath(btn.dataset.ex ?? ""));
     });
   });
 }
 
 function bindReport(root: HTMLElement, a: Analysis) {
-  const radar = root.querySelector<IiaoRadar>("#radar");
-  const tree = root.querySelector<IiaoTree>("#tree");
-  if (radar) radar.data = a.radar;
-  if (tree) tree.tree = a.tree;
-
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
+    const text = `${a.verdict} — ${a.subtitle}\n${url}`;
     try {
-      await navigator.clipboard.writeText(url);
-      toast("Copied. Go start a fight.");
+      await navigator.clipboard.writeText(text);
+      toast("Copied");
     } catch {
       toast(url);
     }
@@ -307,10 +185,10 @@ export async function renderApp(mount: HTMLElement) {
     return;
   }
 
-  mount.innerHTML = pipelineView(route.subject);
+  mount.innerHTML = loadingView(route.subject);
   bindNav(mount);
 
-  const analysis = await runLoading(mount, route.subject);
+  const analysis = await runLoad(mount, route.subject);
   if (token !== runToken) return;
 
   const path = reportPath(route.subject);
