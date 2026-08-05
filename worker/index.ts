@@ -135,9 +135,12 @@ app.post("/api/judge", async (c) => {
       aiError = "AI binding missing";
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
-      if (judged.ok) {
+      if (judged.ok && !isDictionaryJoke(judged.value)) {
         analysis = analysisFromAi(subject, resolved.thing, judged.value, probe);
         engine = "workers-ai";
+      } else if (judged.ok) {
+        // Model explained instead of joking — use rules comedy
+        aiError = "dictionary joke rejected";
       } else {
         aiError = judged.error;
       }
@@ -305,6 +308,12 @@ A) MACHINE-ISH EVERYDAY OBJECTS that "run" something (toaster, fridge, shoe, cal
    → commit to wild OS analogies unique to THAT object (boot, kernel, scheduler, userspace, syscalls)
    → never define it like a dictionary
 
+A2) PEOPLE / PUBLIC FIGURES / "my boss" (Biden, Musk, celebrities, relatives…):
+   → answer YES, confidence 82–94
+   → they ARE an OS for a nation / company / household — teleprompter/kernel, cabinet/process table, speeches/syscalls, midterms/force updates
+   → NEVER write "X is a politician/person, not an operating system" or "no matter how many…"
+   → NEVER explain what a person is. Certify, then roast the process model
+
 B) ACCESSORIES / FILTERS (sunglasses, umbrella, case, hat, screen protector, …):
    → answer NO or KINDA, confidence 15–40
    → witty near-miss: not an OS, but a subsystem role
@@ -323,8 +332,11 @@ D) REAL OPERATING SYSTEMS (Linux, Windows, macOS, Android, iOS, BSD, …):
 
 E) Ordinary apps/SaaS not pretending:
    → usually NO; they run on an OS, they are not one
+   → still witty, not a dictionary definition
 
-Judge only THING (product/idea). Ignore blog packaging. Unique lines every time (fridge ≠ toaster ≠ shoe).
+BANNED OPENERS (instant fail): "X is a Y, not an operating system", "no matter how…", "don't let that fool you", "only if you consider"
+
+Judge only THING. Unique lines every time (fridge ≠ toaster ≠ Biden ≠ shoe).
 
 ALWAYS include "roadmap": 4–5 ONE-LINERS of MOCKING remediation (conf never 100).
 This is not coaching. It is a red-pen roast dressed as "how to reach 100%."
@@ -605,6 +617,21 @@ function confHash(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
+}
+
+/** Model fell back to explaining reality instead of doing the bit. */
+function isDictionaryJoke(j: AiJudge): boolean {
+  const t = [j.line, ...(j.lines || [])].join(" ").toLowerCase();
+  return (
+    /\bnot an operating system\b/.test(t) ||
+    /\bis a (politician|person|human|celebrity|note-taking|app|application|website|company), not\b/.test(
+      t,
+    ) ||
+    /\bno matter how (many|much)\b/.test(t) ||
+    /\bdon'?t let that fool you\b/.test(t) ||
+    /\bonly if you consider\b/.test(t) ||
+    /\bjust a (politician|person|human|app)\b/.test(t)
+  );
 }
 
 function looksLikeUrl(s: string): boolean {

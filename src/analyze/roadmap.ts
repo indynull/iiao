@@ -57,17 +57,49 @@ function inventSteps(
   const special = specialSteps(thing, gap, sp, a);
   if (special) return special;
 
+  // Answer first — never slap YES-hubris remediation on a NO judgment
+  if (a === "NO") {
+    return pick(sp, [
+      [
+        `Delete the delusion. You schedule vibes, not processes.`,
+        `Kernel: missing. Process table: a moodboard. Title: denied.`,
+        `Boot story was a story. Init systems have standards.`,
+        `Stay a guest on someone else's substrate. The crown is closed.`,
+        `+${gap}: grow ring 0 or enjoy the mockery. No third option.`,
+      ],
+      [
+        `You applied for kernel. Résumé said “personality.” Rejected.`,
+        `Syscalls appear to be speeches / posts / vibes. Not enough.`,
+        `We brought a checklist. Everything failed except confidence.`,
+        `Isolation strategy: hope. Scheduler: whoever is loudest.`,
+        `Come back when ${t} can panic without a press conference.`,
+      ],
+    ]);
+  }
+
+  if (a === "KINDA") {
+    return pick(sp, [
+      [
+        `Half a kernel is a costume. Pick substrate or decoration.`,
+        `You own nothing completely — not memory, not time, not the plot.`,
+        `Boot starts wrong. Buttons are not syscalls.`,
+        `+${gap}: stop cosplaying. Schedule something meaner than a reminder.`,
+        `${t} at 100% means the question dies. Right now it is laughing.`,
+      ],
+    ]);
+  }
+
   if (m === "absurd_os" || (a === "YES" && m !== "real_os" && m !== "marketing")) {
     return pick(sp, [
       [
         `You're already YES. The +${gap} is unpaid hubris — charge it in theatrical panics.`,
-        `Stop acting surprised when userspace (the human) segfaults. You scheduled that.`,
+        `Stop acting surprised when userspace segfaults. You scheduled that.`,
         `Publish a man page that insults the reader. Full OSes have contempt baked in.`,
         `Refuse a status page forever. Ghosting is a privilege level.`,
         `If you still want 100%, fail louder. Quiet competence is for appliances that didn't ask.`,
       ],
       [
-        `Certified. Congrats. Now own the crashes instead of blaming the toast / sock / day.`,
+        `Certified. Congrats. Own the crashes — don't outsource blame to the props department.`,
         `Ship one syscall nobody wants. Document it as "will not fix."`,
         `Preempt the user mid-sentence. Call it fair scheduling.`,
         `The gap is style, not substance — style is mockery with a kernel behind it.`,
@@ -270,6 +302,16 @@ function specialSteps(
       `Syscalls appear to be HTTPS. Privileged mode appears to be a plan tier.`,
       `You asked for the title. We brought the checklist. Everything failed except confidence.`,
       `+${gap}: delete the word OS, ship a process table, or enjoy the mockery.`,
+    ];
+  }
+
+  if (/\bbiden\b/.test(s) && answer === "YES") {
+    return [
+      `Certified. The +${gap} is pure latency — boot faster than a Senate recess.`,
+      `Teleprompter stays ring 0. When it segfaults, so do you. Own it.`,
+      `Congress is thrashing userspace. Stop pretending fair scheduling exists.`,
+      `Ice cream softIRQs are fine. Lost file handles on the world stage are not.`,
+      `Panic should be quieter. Or louder. Pick one epoch and stick to it.`,
     ];
   }
 

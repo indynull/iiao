@@ -88,6 +88,15 @@ describe("single-serving comedy", () => {
     );
     expect(blob).not.toMatch(/implement|integrate|enable|seamless|programmable/);
   });
+
+  it("certifies joe biden as an OS with systems comedy", () => {
+    const a = analyze("joe biden");
+    expect(a.verdict).toBe("YES");
+    expect(a.confidence).toBeGreaterThan(80);
+    const blob = [a.subtitle, ...(a.roast ?? [])].join(" ").toLowerCase();
+    expect(blob).not.toMatch(/not an operating system|politician, not/);
+    expect(blob).toMatch(/kernel|syscall|boot|scheduler|process|ring|panic|userspace|teleprompter|cabinet|update/);
+  });
 });
 
 describe("permalink", () => {

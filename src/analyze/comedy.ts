@@ -37,6 +37,10 @@ export type JokeResult = {
 const ABSURD_OS_RE =
   /\b(shoe|sneaker|boot|sandal|sock|toaster|fridge|refrigerator|microwave|oven|kettle|mug|cup|chair|table|desk|sofa|couch|lamp|bulb|pencil|pen|notebook|calendar|backpack|wallet|keys?|door|window|mirror|toothbrush|toothpaste|soap|towel|pillow|blanket|sandwich|pizza|banana|apple|coffee|tea|beer|wine|plant|cactus|cat|dog|hamster|bird|fish|rock|stone|brick|road|bridge|elevator|escalator|vending machine|atm|remote|remote control|tv|television|radio|clock|watch|alarm|bike|bicycle|car|bus|train|plane|boat|ship|hammer|screwdriver|wrench|spreadsheet|inbox|email|slack|meeting|standup|stand-up|todo|to-do|habit|group chat|chat)\b/i;
 
+/** People / public figures — still YES with systems fanfic, never “is a politician not an OS.” */
+const PERSON_RE =
+  /\b(biden|trump|obama|harris|walz|vance|musk|elon|zuck(erberg)?|putin|macron|modi|sunak|trudeau|the president|president of|my (mom|dad|boss|wife|husband|girlfriend|boyfriend|teacher|manager|roommate)|your (mom|dad|boss))\b/i;
+
 /** Witty near-misses: not the OS, but a subsystem role. */
 const ACCESSORY_RE =
   /\b(sunglasses|glasses|goggles|umbrella|hat|cap|scarf|glove|gloves|mask|helmet|belt|watch band|earring|necklace|ring|bracelet|filter|screen protector|case|cover|sticker|badge|pin|lanyard)\b/i;
@@ -87,6 +91,7 @@ export function classify(ctx: ComedyCtx): ComedyMode {
   }
 
   if (ACCESSORY_RE.test(name)) return "accessory";
+  if (PERSON_RE.test(name) || PERSON_RE.test(ctx.blob)) return "absurd_os";
   if (ABSURD_OS_RE.test(name)) return "absurd_os";
   if (ctx.kind === "claim" && corp + ctx.signals.kernel + ctx.signals.os < 2)
     return "absurd_os";
@@ -107,6 +112,9 @@ function absurdOsBundle(name: string, subject: string, sp: number): Bundle {
   const s = (subject + " " + name).toLowerCase();
   const nm = name.trim() || "It";
   const conf = Math.round(88 + sp * 9);
+
+  const person = personBundle(nm, s, sp, conf);
+  if (person) return person;
 
   if (/\bshoe|sneaker|sandal|boot|sock\b/.test(s)) {
     return {
@@ -217,6 +225,99 @@ function absurdOsBundle(name: string, subject: string, sp: number): Bundle {
       "Apps crash. The substrate remains. That is the job.",
       "No status page. No SLA. Perfect uptime culture.",
       "Hardware contact optional; authority over your day: mandatory.",
+    ],
+  };
+}
+
+/** Public figures & “my boss” energy — certify, then roast the process model. */
+function personBundle(
+  nm: string,
+  s: string,
+  sp: number,
+  conf: number,
+): Bundle | null {
+  if (/\bbiden\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: Math.round(86 + sp * 6),
+      lead: pick(sp, [
+        `${nm} is an OS: boots slowly, schedules the free world, and still loses track of open files.`,
+        `${nm} runs a national kernel with a teleprompter in ring 0 and Congress as thrashing userspace.`,
+      ]),
+      more: [
+        "Executive orders are force-pushed updates. Rollback is a midterm.",
+        "Handshake is a blocking syscall. Ice cream is a soft IRQ.",
+        "The cabinet is a process table that never quite reaps.",
+        "Uptime measured in four-year epochs. Panic is bipartisan.",
+      ],
+    };
+  }
+  if (/\btrump\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: Math.round(87 + sp * 6),
+      lead: `${nm} is an OS that posts its own kernel panic to the timeline in all caps.`,
+      more: [
+        "Scheduler priority: whoever is loudest on the bus.",
+        "Truth is optional; the process table is loyalty.",
+        "Forced updates arrive as truth social commits with no code review.",
+        "We grant the title. Stability is someone else's department.",
+      ],
+    };
+  }
+  if (/\b(musk|elon)\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: Math.round(85 + sp * 7),
+      lead: `${nm} is an OS that renames the root account at 3am and calls it a feature.`,
+      more: [
+        "Boot is a tweet. Shutdown is also a tweet.",
+        "Process isolation: optional. Memes: mandatory.",
+        "ioctl(FIRE_HALF) — accepted without confirmation.",
+        "Title granted. On-call is the entire userbase.",
+      ],
+    };
+  }
+  if (/\b(zuck|zuckerberg)\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: Math.round(84 + sp * 7),
+      lead: `${nm} is an OS whose primary syscall is harvest_attention().`,
+      more: [
+        "Userspace thinks it's social. Kernel is an ad auction.",
+        "Privacy settings are a maze with no exit node.",
+        "Metaverse was a failed userspace that still bills for rent.",
+        "We certify the substrate. We mock the UI of being a person.",
+      ],
+    };
+  }
+  if (/\bmy (boss|manager)\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: conf,
+      lead: `${nm} is a hostile scheduler with calendar privileges and no man page.`,
+      more: [
+        "Your tasks are processes. Priority is whoever yelled last.",
+        "1:1s are blocking syscalls. Slack is softIRQ spam.",
+        "Performance review is fsck with worse docs.",
+        "You are userspace. Act accordingly.",
+      ],
+    };
+  }
+  if (!PERSON_RE.test(s)) return null;
+
+  return {
+    answer: "YES",
+    confidence: Math.round(84 + sp * 8),
+    lead: pick(sp, [
+      `${nm} is an OS for a small, opinionated machine called a life.`,
+      `${nm} schedules other humans, loses file handles, and still claims uptime.`,
+    ]),
+    more: [
+      "Boot is coffee. Panic is a group chat. Recovery is a nap.",
+      "Process table: obligations. Zombies: unresolved emails.",
+      "Syscalls include sigh(), ghost(), and overcommit().",
+      "No status page. Plenty of status meetings.",
     ],
   };
 }
