@@ -7,6 +7,7 @@ import {
   jokeFor,
   type ComedyMode,
 } from "./comedy";
+import { resolveThing } from "./thing";
 import { seedHex } from "./seed";
 import type {
   Analysis,
@@ -218,11 +219,16 @@ export function analyze(
   subjectRaw: string,
   probe?: ProbeResult | null,
 ): Analysis {
-  const ctx = buildContext(subjectRaw, probe);
+  const resolved = resolveThing(subjectRaw, probe);
+  // Judge the product/thing; keep original input as subject for permalinks
+  const ctx = buildContext(resolved.thing, probe);
+  // Prefer resolved product name for display
+  ctx.displayName = resolved.thing;
+  ctx.subject = resolved.thing;
   const joke = jokeFor({
-    subject: ctx.subject,
-    displayName: ctx.displayName,
-    blob: ctx.blob,
+    subject: resolved.thing,
+    displayName: resolved.thing,
+    blob: `${ctx.blob}\n${subjectRaw}`.toLowerCase(),
     kind: ctx.kind,
     host: ctx.host,
     signals: ctx.signals,
@@ -255,15 +261,15 @@ export function analyze(
   const roast = [joke.line, ...joke.lines];
 
   return {
-    subject: ctx.subject,
-    kind: ctx.kind,
+    subject: subjectRaw.trim(),
+    kind: resolved.isUrl ? "url" : "claim",
     host: ctx.host,
     seed,
-    caseId: caseId(ctx.subject),
+    caseId: caseId(resolved.thing),
     confidence: joke.confidence,
     verdict: joke.answer,
     subtitle: joke.line,
-    stamp: "",
+    stamp: resolved.thing,
     criteria,
     tree: simpleTree(ctx.displayName, joke.answer, joke.line, joke.confidence),
     radar: criteria.map((c) => ({

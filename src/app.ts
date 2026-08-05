@@ -1,5 +1,5 @@
 import { analyze } from "./analyze/engine";
-import type { Analysis, ProbeResult } from "./analyze/types";
+import type { Analysis } from "./analyze/types";
 import { navigate, parseLocation, reportPath } from "./routes";
 
 const EXAMPLES = [
@@ -70,17 +70,20 @@ function answerClass(v: string): string {
   return "answer--kinda";
 }
 
-function reportView(a: Analysis): string {
+function reportView(a: Analysis, meta?: { thing?: string; engine?: string }): string {
   const answer = a.verdict; // YES | NO | KINDA
   const lead = a.subtitle;
   const rest = (a.roast ?? []).filter((l) => l && l !== lead);
-  const notes = a.criteria
-    .filter((c) => c.score >= 0.7 || c.score <= 0.2)
-    .slice(0, 5);
+  const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 5);
+  const thing = meta?.thing || a.stamp || a.subject;
+  const showSource = thing !== a.subject;
 
   return shell(`
     <main class="stage stage--result">
-      <p class="about">${esc(a.subject)}</p>
+      <p class="about">
+        ${esc(thing)}
+        ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
+      </p>
       <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
       <p class="line">${esc(lead)}</p>
       <div class="commentary">
@@ -98,7 +101,7 @@ function reportView(a: Analysis): string {
       </ul>`
           : ""
       }
-      <p class="pct">${a.confidence}%</p>
+      <p class="pct">${a.confidence}%${meta?.engine === "workers-ai" ? " · live model" : ""}</p>
       <div class="row">
         <button type="button" class="btn" id="btn-copy">Share</button>
         <button type="button" class="btn btn--ghost" id="btn-again">Again</button>
@@ -115,39 +118,58 @@ function toast(msg: string) {
   window.setTimeout(() => el.classList.remove("show"), 2000);
 }
 
-async function probeUrl(subject: string): Promise<ProbeResult | null> {
-  try {
-    const u = new URL(subject.includes("://") ? subject : `https://${subject}`);
-    if (!["http:", "https:"].includes(u.protocol)) return null;
-    const res = await fetch(`/api/probe?url=${encodeURIComponent(u.toString())}`);
-    if (!res.ok) return { ok: false, error: `http ${res.status}` };
-    return (await res.json()) as ProbeResult;
-  } catch {
-    return null;
-  }
-}
-
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 const THINKS = [
   "thinking…",
-  "consulting the shoe council…",
-  "checking for a kernel…",
+  "finding the product…",
+  "asking the model…",
   "almost…",
 ];
 
-async function runLoad(root: HTMLElement, subject: string): Promise<Analysis> {
+type JudgeResponse = {
+  ok: boolean;
+  engine?: string;
+  thing?: string;
+  analysis?: Analysis;
+  error?: string;
+};
+
+async function runLoad(
+  root: HTMLElement,
+  subject: string,
+): Promise<{ analysis: Analysis; thing?: string; engine?: string }> {
   const el = root.querySelector("#think");
   let i = 0;
   const t = window.setInterval(() => {
     i = (i + 1) % THINKS.length;
     if (el) el.textContent = THINKS[i]!;
-  }, 450);
-  const [, probe] = await Promise.all([sleep(900), probeUrl(subject)]);
-  window.clearInterval(t);
-  return analyze(subject, probe);
+  }, 500);
+
+  try {
+    const res = await fetch("/api/judge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subject }),
+    });
+    const data = (await res.json()) as JudgeResponse;
+    if (data.ok && data.analysis) {
+      return {
+        analysis: data.analysis,
+        thing: data.thing,
+        engine: data.engine,
+      };
+    }
+  } catch {
+    /* fall through */
+  } finally {
+    window.clearInterval(t);
+  }
+
+  // Offline / API fail — local rules
+  return { analysis: analyze(subject, null), engine: "rules" };
 }
 
 function bindHome(root: HTMLElement) {
@@ -208,7 +230,7 @@ export async function renderApp(mount: HTMLElement) {
   mount.innerHTML = loadingView(route.subject);
   bindNav(mount);
 
-  const analysis = await runLoad(mount, route.subject);
+  const { analysis, thing, engine } = await runLoad(mount, route.subject);
   if (token !== runToken) return;
 
   const path = reportPath(route.subject);
@@ -216,7 +238,7 @@ export async function renderApp(mount: HTMLElement) {
     history.replaceState({}, "", path);
   }
 
-  mount.innerHTML = reportView(analysis);
+  mount.innerHTML = reportView(analysis, { thing, engine });
   bindNav(mount);
   bindReport(mount, analysis);
 }

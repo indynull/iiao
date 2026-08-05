@@ -1,0 +1,29 @@
+import { describe, expect, it } from "vitest";
+import { resolveThing } from "./thing";
+
+describe("resolveThing", () => {
+  it("pulls Cloudflare OS from a blog slug, not the article framing", () => {
+    const r = resolveThing(
+      "https://blog.cloudflare.com/how-we-use-ai-with-cloudflare-os/",
+    );
+    expect(r.thing.toLowerCase()).toContain("cloudflare");
+    expect(r.thing.toLowerCase()).toMatch(/\bos\b/);
+    expect(r.thing.toLowerCase()).not.toMatch(/how we use/);
+  });
+
+  it("uses free-form claims as-is", () => {
+    const r = resolveThing("a stainless steel fridge");
+    expect(r.thing).toBe("a stainless steel fridge");
+    expect(r.isUrl).toBe(false);
+  });
+
+  it("uses product OS from page title when probe present", () => {
+    const r = resolveThing("https://blog.example.com/post", {
+      ok: true,
+      title: "How we use AI with Cloudflare OS",
+      description: "Introducing Cloudflare OS on the edge",
+      host: "blog.example.com",
+    });
+    expect(r.thing).toMatch(/Cloudflare OS/i);
+  });
+});

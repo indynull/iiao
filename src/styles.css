@@ -160,9 +160,20 @@ body {
 .about {
   margin: 0 0 0.75rem;
   font-family: var(--mono);
-  font-size: 0.8rem;
-  color: var(--muted);
+  font-size: 0.85rem;
+  color: var(--ink);
+  font-weight: 600;
   word-break: break-word;
+  line-height: 1.4;
+}
+
+.about__src {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--muted);
+  word-break: break-all;
 }
 
 .answer {
