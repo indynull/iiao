@@ -10,12 +10,12 @@ import type { IiaoTree } from "./viz/tree";
 import type { IiaoBars } from "./viz/bars";
 
 const EXAMPLES = [
+  "a shoe",
+  "my toaster",
   "https://www.cloudflare.com/",
-  "https://www.gnu.org/software/emacs/",
   "https://kernel.org/",
-  "https://www.microsoft.com/windows",
-  "a toaster with Wi‑Fi",
-  "my calendar app",
+  "the group chat",
+  "emacs",
 ];
 
 const LOADING_LINES = [
