@@ -29,12 +29,13 @@ const cfProbe: ProbeResult = {
 };
 
 describe("single-serving comedy", () => {
-  it("shoe is YES with a short line", () => {
+  it("shoe is YES with commentary", () => {
     const a = analyze("a shoe");
     expect(a.verdict).toBe("YES");
     expect(a.confidence).toBeGreaterThan(70);
     expect(a.subtitle.length).toBeGreaterThan(10);
-    expect(a.subtitle.length).toBeLessThan(160);
+    expect(a.roast.length).toBeGreaterThan(2);
+    expect(a.roast.join(" ").toLowerCase()).toMatch(/sole|lace|toe|step|ring/);
   });
 
   it("cloudflare is NO and lower than a shoe", () => {

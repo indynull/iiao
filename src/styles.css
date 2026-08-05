@@ -182,19 +182,56 @@ body {
 }
 
 .line {
-  margin: 0 0 0.65rem;
+  margin: 0 0 1rem;
   font-size: clamp(1.2rem, 3.5vw, 1.45rem);
   line-height: 1.4;
   letter-spacing: -0.02em;
-  max-width: 34rem;
+  max-width: 36rem;
 }
 
-.subline {
+.commentary {
   margin: 0 0 1.25rem;
+  max-width: 36rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.commentary p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  opacity: 0.88;
+}
+
+.notes {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1rem;
+  max-width: 36rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.notes li {
+  font-size: 0.92rem;
+  line-height: 1.4;
   color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.45;
-  max-width: 32rem;
+}
+
+.notes__k {
+  display: inline-block;
+  min-width: 5.5rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.7;
+  margin-right: 0.35rem;
 }
 
 .pct {
@@ -203,6 +240,11 @@ body {
   font-size: 0.85rem;
   color: var(--muted);
   letter-spacing: 0.04em;
+}
+
+.stage--result {
+  justify-content: flex-start;
+  padding-top: 1.5rem;
 }
 
 .row {

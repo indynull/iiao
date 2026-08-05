@@ -72,15 +72,32 @@ function answerClass(v: string): string {
 
 function reportView(a: Analysis): string {
   const answer = a.verdict; // YES | NO | KINDA
-  const line = a.subtitle;
-  const sub = a.stamp;
+  const lead = a.subtitle;
+  const rest = (a.roast ?? []).filter((l) => l && l !== lead);
+  const notes = a.criteria
+    .filter((c) => c.score >= 0.7 || c.score <= 0.2)
+    .slice(0, 5);
 
   return shell(`
     <main class="stage stage--result">
       <p class="about">${esc(a.subject)}</p>
       <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
-      <p class="line">${esc(line)}</p>
-      ${sub ? `<p class="subline">${esc(sub)}</p>` : ""}
+      <p class="line">${esc(lead)}</p>
+      <div class="commentary">
+        ${rest.map((l) => `<p>${esc(l)}</p>`).join("")}
+      </div>
+      ${
+        notes.length
+          ? `<ul class="notes">
+        ${notes
+          .map(
+            (c) =>
+              `<li><span class="notes__k">${esc(c.label)}</span> ${esc(c.note)}</li>`,
+          )
+          .join("")}
+      </ul>`
+          : ""
+      }
       <p class="pct">${a.confidence}%</p>
       <div class="row">
         <button type="button" class="btn" id="btn-copy">Share</button>
@@ -152,7 +169,10 @@ function bindHome(root: HTMLElement) {
 function bindReport(root: HTMLElement, a: Analysis) {
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
-    const text = `${a.verdict} — ${a.subtitle}\n${url}`;
+    const body = [a.verdict, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
+      .filter(Boolean)
+      .join("\n");
+    const text = `${body}\n${url}`;
     try {
       await navigator.clipboard.writeText(text);
       toast("Copied");

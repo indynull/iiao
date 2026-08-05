@@ -252,6 +252,7 @@ export function analyze(
   ).map(([key, label, count]) => ({ key, label, count }));
 
   const seed = seedHex(ctx.subject.toLowerCase());
+  const roast = [joke.line, ...joke.lines];
 
   return {
     subject: ctx.subject,
@@ -262,7 +263,7 @@ export function analyze(
     confidence: joke.confidence,
     verdict: joke.answer,
     subtitle: joke.line,
-    stamp: joke.sub ?? "",
+    stamp: "",
     criteria,
     tree: simpleTree(ctx.displayName, joke.answer, joke.line, joke.confidence),
     radar: criteria.map((c) => ({
@@ -274,9 +275,9 @@ export function analyze(
       { label: ctx.mode, delta: joke.confidence, total: joke.confidence },
     ],
     timeline: [],
-    redFlags: joke.sub ? [joke.sub] : [],
-    findings: [joke.line],
-    roast: [joke.line, ...(joke.sub ? [joke.sub] : [])],
+    redFlags: joke.lines.slice(0, 3),
+    findings: roast,
+    roast,
     methodology: [],
     probe: ctx.probe,
   };
