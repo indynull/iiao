@@ -37,11 +37,11 @@ function homeView(): string {
   return shell(`
     <main class="stage stage--home">
       <h1 class="title">Is it an OS?</h1>
-      <p class="tagline">Paste anything. We will tell you.</p>
+      <p class="tagline">Paste a link, or describe a product or idea.</p>
       <form class="box" id="compose" autocomplete="off">
-        <label class="sr-only" for="subject">Thing</label>
-        <input id="subject" name="subject" type="text" inputmode="url"
-          placeholder="a shoe, a URL, your calendar…"
+        <label class="sr-only" for="subject">Link, product, or idea</label>
+        <input id="subject" name="subject" type="text"
+          placeholder="https://… or “an edge platform for agents” or a shoe"
           required maxlength="2048" autofocus />
         <button type="submit">Ask</button>
       </form>

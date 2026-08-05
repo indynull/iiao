@@ -60,9 +60,12 @@ body {
   margin: 0 0 0.5rem;
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(2.8rem, 10vw, 4.2rem);
-  line-height: 0.95;
+  font-size: clamp(2.6rem, 9vw, 4.2rem);
+  line-height: 1.05;
   letter-spacing: -0.03em;
+  /* Serif italics/descenders and tight tracking clip the trailing ? */
+  padding-right: 0.12em;
+  overflow: visible;
 }
 
 .tagline {
