@@ -1,0 +1,9 @@
+{
+  "slug": "iiao",
+  "title": "Is it an OS?",
+  "description": "Placeholder experiment — product TBD.",
+  "status": "active",
+  "url": "https://iiao.algor.ist",
+  "template": "worker",
+  "subdomain": "iiao"
+}
