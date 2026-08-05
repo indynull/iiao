@@ -7,9 +7,34 @@ import type { Analysis, ProbeResult } from "../src/analyze/types";
 export type Env = {
   ASSETS: Fetcher;
   AI: Ai;
+  TELEMETRY?: KVNamespace;
+  TELEMETRY_TOKEN?: string;
 };
 
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const RECENT_KEY = "recent";
+const STATS_KEY = "stats";
+const RECENT_MAX = 200;
+
+type TelemetryEvent = {
+  ts: string;
+  thing: string;
+  inputKind: "url" | "claim";
+  answer: string;
+  confidence: number;
+  engine: string;
+  thingSource: string;
+  /** hostname only when input was a URL — no full path (less PII) */
+  host?: string;
+};
+
+type TelemetryStats = {
+  total: number;
+  byAnswer: Record<string, number>;
+  byEngine: Record<string, number>;
+  byKind: Record<string, number>;
+  updatedAt: string;
+};
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -24,8 +49,35 @@ app.get("/api/health", (c) =>
     service: "iiao",
     engine: "workers-ai",
     model: MODEL,
+    telemetry: Boolean(c.env.TELEMETRY),
   }),
 );
+
+/** Owner-only: recent judgments + counters. Header: Authorization: Bearer <TELEMETRY_TOKEN> */
+app.get("/api/telemetry", async (c) => {
+  if (!checkTelemetryAuth(c)) {
+    return c.json({ ok: false, error: "unauthorized" }, 401);
+  }
+  if (!c.env.TELEMETRY) {
+    return c.json({ ok: false, error: "telemetry kv not bound" }, 503);
+  }
+  const [recentRaw, statsRaw] = await Promise.all([
+    c.env.TELEMETRY.get(RECENT_KEY),
+    c.env.TELEMETRY.get(STATS_KEY),
+  ]);
+  const recent = (safeJson(recentRaw) as TelemetryEvent[]) || [];
+  const stats = (safeJson(statsRaw) as TelemetryStats) || emptyStats();
+  const topThings = topCounts(
+    recent.map((e) => e.thing),
+    25,
+  );
+  return c.json({
+    ok: true,
+    stats,
+    topThings,
+    recent: recent.slice(0, 100),
+  });
+});
 
 app.get("/api/probe", async (c) => {
   const raw = c.req.query("url")?.trim();
@@ -105,6 +157,18 @@ app.post("/api/judge", async (c) => {
     };
   }
 
+  // Small KV write — await so we don't rely on waitUntil edge cases
+  await recordTelemetry(c.env, {
+    ts: new Date().toISOString(),
+    thing: resolved.thing.slice(0, 200),
+    inputKind: isUrl ? "url" : "claim",
+    answer: String(analysis.verdict || "").slice(0, 16),
+    confidence: Number(analysis.confidence) || 0,
+    engine,
+    thingSource: resolved.source.slice(0, 40),
+    host: isUrl ? hostOnly(subject) : undefined,
+  });
+
   return c.json({
     ok: true,
     engine,
@@ -114,6 +178,87 @@ app.post("/api/judge", async (c) => {
     analysis,
   });
 });
+
+function checkTelemetryAuth(c: {
+  req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
+  env: Env;
+}): boolean {
+  const expected = c.env.TELEMETRY_TOKEN;
+  if (!expected) return false;
+  const auth = c.req.header("authorization") || "";
+  const bearer = auth.toLowerCase().startsWith("bearer ")
+    ? auth.slice(7).trim()
+    : "";
+  const q = c.req.query("token")?.trim() || "";
+  return bearer === expected || q === expected;
+}
+
+function safeJson(raw: string | null): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function emptyStats(): TelemetryStats {
+  return {
+    total: 0,
+    byAnswer: {},
+    byEngine: {},
+    byKind: {},
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function topCounts(items: string[], n: number): { thing: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const it of items) {
+    const k = it.trim() || "(empty)";
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return [...m.entries()]
+    .map(([thing, count]) => ({ thing, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n);
+}
+
+function hostOnly(input: string): string | undefined {
+  try {
+    const u = new URL(input.includes("://") ? input : `https://${input}`);
+    return u.hostname.replace(/^www\./, "").slice(0, 120);
+  } catch {
+    return undefined;
+  }
+}
+
+async function recordTelemetry(env: Env, event: TelemetryEvent): Promise<void> {
+  if (!env.TELEMETRY) return;
+  try {
+    const [recentRaw, statsRaw] = await Promise.all([
+      env.TELEMETRY.get(RECENT_KEY),
+      env.TELEMETRY.get(STATS_KEY),
+    ]);
+    const recent = ((safeJson(recentRaw) as TelemetryEvent[]) || []).slice();
+    recent.unshift(event);
+    while (recent.length > RECENT_MAX) recent.pop();
+
+    const stats = (safeJson(statsRaw) as TelemetryStats) || emptyStats();
+    stats.total += 1;
+    stats.byAnswer[event.answer] = (stats.byAnswer[event.answer] || 0) + 1;
+    stats.byEngine[event.engine] = (stats.byEngine[event.engine] || 0) + 1;
+    stats.byKind[event.inputKind] = (stats.byKind[event.inputKind] || 0) + 1;
+    stats.updatedAt = event.ts;
+
+    await Promise.all([
+      env.TELEMETRY.put(RECENT_KEY, JSON.stringify(recent)),
+      env.TELEMETRY.put(STATS_KEY, JSON.stringify(stats)),
+    ]);
+  } catch {
+    /* never break the site for telemetry */
+  }
+}
 
 type AiJudge = {
   answer: "YES" | "NO" | "KINDA";

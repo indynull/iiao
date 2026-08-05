@@ -13,6 +13,14 @@ run_worker_first = ["/api/*"]
 [ai]
 binding = "AI"
 
+[[kv_namespaces]]
+binding = "TELEMETRY"
+id = "81a4030fc28e46fbaee9898beff60c71"
+preview_id = "96b43e6593a546e8a8fa035ad5529f1b"
+
+# Optional secret TELEMETRY_TOKEN for /api/telemetry
+#   npx wrangler secret put TELEMETRY_TOKEN
+
 [observability]
 enabled = true
 head_sampling_rate = 1
