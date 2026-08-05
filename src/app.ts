@@ -26,7 +26,7 @@ function shell(inner: string): string {
       <footer class="foot">
         <a href="/" data-nav="/">is it an os?</a>
         <span class="foot__dot">·</span>
-        <span>a tiny judgment engine</span>
+        <span>algor.ist</span>
       </footer>
     </div>
     <div class="toast" id="toast" role="status"></div>
@@ -37,7 +37,7 @@ function homeView(): string {
   return shell(`
     <main class="stage stage--home">
       <h1 class="title">Is it an OS?</h1>
-      <p class="tagline">Paste anything. Get a serious answer for a silly question.</p>
+      <p class="tagline">Paste anything. We will tell you.</p>
       <form class="box" id="compose" autocomplete="off">
         <label class="sr-only" for="subject">Thing</label>
         <input id="subject" name="subject" type="text" inputmode="url"

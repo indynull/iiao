@@ -121,11 +121,11 @@ function absurdLine(name: string, subject: string, sp: number): string {
 
 function marketingLine(name: string, sp: number): string {
   return pick(sp, [
-    `${n(name)} is a website that wants to be infrastructure when it grows up.`,
-    `Lots of “platform.” Zero kernel. The shoe is laughing.`,
-    `${n(name)} boots straight into a pricing table. That's sales, not init.`,
-    `Bold of them to say OS without shipping anything that schedules a process.`,
-    `${n(name)} has more gradients than syscalls. Not an OS. A mood.`,
+    `${n(name)} is a website with a global edge network and no kernel.`,
+    `“Platform” on every slide. Processes: not found.`,
+    `${n(name)} boots into a pricing table. That is sales, not init.`,
+    `No scheduler, no userspace, no ring 0 — just CDN and hope.`,
+    `${n(name)} has more gradients than syscalls.`,
   ]);
 }
 
@@ -135,22 +135,22 @@ function n(s: string): string {
 
 function realLine(name: string, sp: number): string {
   return pick(sp, [
-    `Yes. A real one. Awkward for the bit, but here we are.`,
-    `${n(name)} has a kernel on purpose. The shoe was more fun.`,
-    `Correct, boring, and 100% less interesting than a toaster.`,
+    `${n(name)} schedules processes, talks to hardware, and owns ring 0.`,
+    `Kernel, drivers, userspace — the full stack, not a landing page.`,
+    `${n(name)} is what the word “OS” was for before marketing found it.`,
   ]);
 }
 
 function genericLine(name: string, sp: number, conf: number): string {
   if (conf >= 55) {
     return pick(sp, [
-      `${n(name)} can be an OS if we let poetry into the kernel. We do.`,
-      `Not a fraud, not a textbook. ${conf}% OS on vibes and structure.`,
+      `${n(name)} sits between you and the machine. That is the job.`,
+      `${n(name)} owns the resources. Apps just visit.`,
     ]);
   }
   return pick(sp, [
-    `${n(name)} is closer to an app than an OS. The shoe remains undefeated.`,
-    `Nice software. Not an operating system. We checked under the pricing page.`,
+    `${n(name)} runs on top of something else. Guests aren't kernels.`,
+    `Useful software. Not the layer that boots the world.`,
   ]);
 }
 
@@ -165,11 +165,6 @@ export function jokeFor(ctx: ComedyCtx): JokeResult {
       answer: "YES",
       confidence,
       line: absurdLine(name, ctx.subject, sp),
-      sub: pick(sp, [
-        "Higher than most things with OS in the name.",
-        "Committed to the bit. Correctly.",
-        "Systems design is just metaphor with extra steps.",
-      ]),
     };
   }
 
@@ -179,11 +174,6 @@ export function jokeFor(ctx: ComedyCtx): JokeResult {
       answer: "NO",
       confidence,
       line: marketingLine(name, sp),
-      sub: pick(sp, [
-        "Try a shoe. Better process model.",
-        "We believe in you. As a website.",
-        "Come back when you schedule something that isn't a demo.",
-      ]),
     };
   }
 
@@ -193,21 +183,14 @@ export function jokeFor(ctx: ComedyCtx): JokeResult {
       answer: "YES",
       confidence,
       line: realLine(name, sp),
-      sub: "No stretch required. Slightly disappointing.",
     };
   }
 
   const confidence = Math.round(36 + sp * 28);
-  const answer: JokeResult["answer"] =
-    confidence >= 58 ? "KINDA" : confidence >= 48 ? "KINDA" : "NO";
   return {
-    answer: confidence >= 55 ? "KINDA" : answer,
+    answer: confidence >= 55 ? "KINDA" : "NO",
     confidence,
     line: genericLine(name, sp, confidence),
-    sub:
-      confidence >= 55
-        ? "Poetry was admitted into evidence."
-        : "The committee wants a nap.",
   };
 }
 
@@ -222,7 +205,7 @@ export function axisScores(mode: ComedyMode): { id: string; label: string; score
       { id: "syscall", label: "Interface", score: 0.85, note: "use() returns success sometimes." },
       { id: "isolation", label: "Isolation", score: 0.8, note: "Keeps wet off dry." },
       { id: "boot", label: "Boot ritual", score: 0.94, note: "It starts. That's init." },
-      { id: "posix", label: "Lineage", score: 0.7, note: "Spiritually UNIX, legally a joke." },
+      { id: "posix", label: "Lineage", score: 0.7, note: "Spiritually UNIX." },
     ];
   }
   if (mode === "marketing") {
