@@ -70,38 +70,66 @@ function answerClass(v: string): string {
   return "answer--kinda";
 }
 
-function reportView(a: Analysis, meta?: { thing?: string; engine?: string }): string {
-  const answer = a.verdict; // YES | NO | KINDA
+function engineLabel(engine?: string): string {
+  if (engine === "workers-ai") return "Cloudflare Llama";
+  if (engine === "rules") return "offline rules";
+  return engine || "";
+}
+
+function reportView(
+  a: Analysis,
+  meta?: { thing?: string; engine?: string },
+): string {
+  const answer = a.verdict;
   const lead = a.subtitle;
   const rest = (a.roast ?? []).filter((l) => l && l !== lead);
-  const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 5);
+  const notes = a.criteria.filter((c) => c.note && c.label).slice(0, 6);
   const thing = meta?.thing || a.stamp || a.subject;
   const showSource = thing !== a.subject;
+  const eng = engineLabel(meta?.engine);
 
   return shell(`
     <main class="stage stage--result">
-      <p class="about">
-        ${esc(thing)}
-        ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
-      </p>
-      <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
-      <p class="line">${esc(lead)}</p>
-      <div class="commentary">
-        ${rest.map((l) => `<p>${esc(l)}</p>`).join("")}
-      </div>
+      <article class="verdict-card">
+        <p class="about">
+          ${esc(thing)}
+          ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
+        </p>
+        <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
+        <p class="line">${esc(lead)}</p>
+        <div class="meta-row">
+          <p class="pct">${a.confidence}% confident</p>
+          ${eng ? `<span class="engine-pill" title="How this was judged">${esc(eng)}</span>` : ""}
+        </div>
+      </article>
+
       ${
-        notes.length
-          ? `<ul class="notes">
-        ${notes
-          .map(
-            (c) =>
-              `<li><span class="notes__k">${esc(c.label)}</span> ${esc(c.note)}</li>`,
-          )
-          .join("")}
-      </ul>`
+        rest.length
+          ? `<section class="section">
+        <h2 class="section__label">Commentary</h2>
+        <div class="commentary">
+          ${rest.map((l) => `<p>${esc(l)}</p>`).join("")}
+        </div>
+      </section>`
           : ""
       }
-      <p class="pct">${a.confidence}%${meta?.engine === "workers-ai" ? " · live model" : ""}</p>
+
+      ${
+        notes.length
+          ? `<section class="section">
+        <h2 class="section__label">Systems notes</h2>
+        <ul class="notes">
+          ${notes
+            .map(
+              (c) =>
+                `<li><span class="notes__k">${esc(c.label)}</span><span>${esc(c.note)}</span></li>`,
+            )
+            .join("")}
+        </ul>
+      </section>`
+          : ""
+      }
+
       <div class="row">
         <button type="button" class="btn" id="btn-copy">Share</button>
         <button type="button" class="btn btn--ghost" id="btn-again">Again</button>
@@ -116,10 +144,6 @@ function toast(msg: string) {
   el.textContent = msg;
   el.classList.add("show");
   window.setTimeout(() => el.classList.remove("show"), 2000);
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 const THINKS = [
@@ -168,7 +192,6 @@ async function runLoad(
     window.clearInterval(t);
   }
 
-  // Offline / API fail — local rules
   return { analysis: analyze(subject, null), engine: "rules" };
 }
 
