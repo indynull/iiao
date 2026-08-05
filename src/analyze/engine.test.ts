@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { analyze } from "./engine";
+import { preferRulesComedy } from "./comedy";
 import type { ProbeResult } from "./types";
 import { encodeSubject, decodeSubject, reportPath } from "../routes";
 
@@ -108,6 +109,19 @@ describe("single-serving comedy", () => {
     const lead = a.subtitle.toLowerCase();
     expect(lead).not.toMatch(/is an operating system for|serving as (his|her) kernel/);
     expect(lead).toMatch(/panic|ring 0|scheduler|podium|caps|loudest|guest/);
+  });
+
+  it("my cat is guest-account comedy, not hairball mad-lib", () => {
+    expect(preferRulesComedy("my cat")).toBe(true);
+    expect(preferRulesComedy("my toaster")).toBe(true);
+    expect(preferRulesComedy("sunglasses")).toBe(true);
+    const a = analyze("my cat");
+    expect(a.verdict).toBe("YES");
+    const blob = [a.subtitle, ...(a.roast ?? [])].join(" ").toLowerCase();
+    expect(blob).not.toMatch(
+      /is an operating system|hairballs as|suspiciously calm|purring as/,
+    );
+    expect(blob).toMatch(/guest|kernel|nap|irq|lap|ebusy|instinct/);
   });
 });
 

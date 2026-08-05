@@ -130,7 +130,7 @@ app.post("/api/judge", async (c) => {
   let engine: "workers-ai" | "rules" = "rules";
   let aiError: string | undefined;
 
-  // People packs are handcrafted — models spit mad-lib “OS for the country” lines
+  // Handcrafted packs (cat, toaster, people, CF, …) — never let the model mad-lib them
   const skipAi = preferRulesComedy(resolved.thing) || preferRulesComedy(subject);
 
   try {
@@ -636,11 +636,15 @@ function isBadComedy(j: AiJudge): boolean {
     /\bdon'?t let that fool you\b/.test(t) ||
     /\bonly if you consider\b/.test(t) ||
     /\bjust a (politician|person|human|app)\b/.test(t) ||
-    // “X is an operating system for the United States, with Y serving as his kernel…”
-    /\bis an operating system for\b/.test(t) ||
+    // Definition / mad-lib templates (cat hairballs, country kernel, etc.)
+    /\bis an operating system\b/.test(t) ||
+    /\bis an os[,.]?\s+with\b/.test(t) ||
     /\bserving as (his|her|their|its) kernel\b/.test(t) ||
     /\bwith a \w[\w\s]{0,40} as (his|her|their|its) kernel\b/.test(t) ||
-    /\bas (his|her|their|its) syscall\b/.test(t)
+    /\bwith [\w\s,'-]{2,60} as [\w\s]{2,40} and [\w\s,'-]{2,60} as\b/.test(t) ||
+    /\bas (his|her|their|its) syscall\b/.test(t) ||
+    /\bsuspiciously calm kernel\b/.test(t) ||
+    /\bhairballs as\b/.test(t)
   );
 }
 

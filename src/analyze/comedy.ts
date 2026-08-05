@@ -41,11 +41,6 @@ const ABSURD_OS_RE =
 const PERSON_RE =
   /\b(biden|trump|obama|harris|walz|vance|musk|elon|zuck(erberg)?|putin|macron|modi|sunak|trudeau|the president|president of|my (mom|dad|boss|wife|husband|girlfriend|boyfriend|teacher|manager|roommate)|your (mom|dad|boss))\b/i;
 
-/** Prefer handcrafted packs — models write “X is an OS for the country with Y as kernel.” */
-export function preferRulesComedy(subject: string): boolean {
-  return PERSON_RE.test(subject);
-}
-
 /** Witty near-misses: not the OS, but a subsystem role. */
 const ACCESSORY_RE =
   /\b(sunglasses|glasses|goggles|umbrella|hat|cap|scarf|glove|gloves|mask|helmet|belt|watch band|earring|necklace|ring|bracelet|filter|screen protector|case|cover|sticker|badge|pin|lanyard)\b/i;
@@ -58,6 +53,22 @@ const MARKETING_HOST_RE =
 
 const PRETEND_OS_RE =
   /\b(\w[\w\s]{0,24})\s*os\b|operating system|the os for\b/i;
+
+/**
+ * Prefer handcrafted packs whenever we have one.
+ * Models default to “X is an operating system, with Y as crashes and Z as kernel.”
+ */
+export function preferRulesComedy(subject: string): boolean {
+  const s = subject.trim();
+  if (!s) return false;
+  return (
+    PERSON_RE.test(s) ||
+    ABSURD_OS_RE.test(s) ||
+    ACCESSORY_RE.test(s) ||
+    MARKETING_HOST_RE.test(s) ||
+    REAL_OS_RE.test(s)
+  );
+}
 
 export function spice(s: string): number {
   let h = 2166136261;
