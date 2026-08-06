@@ -301,8 +301,37 @@ type JudgeResponse = {
 
 type JudgeOk = { analysis: Analysis; thing?: string; engine?: string };
 
-/** Same subject in this tab → skip the full board theater. */
+/** Same subject+engine prefer in this tab → skip the full board theater. */
 const judgeCache = new Map<string, JudgeOk>();
+
+const ENGINE_KEY = "iiao_engine_prefer";
+type EnginePrefer = "auto" | "ai" | "rules";
+
+function getEnginePrefer(): EnginePrefer {
+  const v = (sessionStorage.getItem(ENGINE_KEY) || "auto").toLowerCase();
+  if (v === "ai" || v === "rules") return v;
+  return "auto";
+}
+
+function setEnginePrefer(p: EnginePrefer) {
+  sessionStorage.setItem(ENGINE_KEY, p);
+}
+
+/** Cycle auto → ai → rules. Hidden: Ctrl+Shift+E */
+export function cycleEnginePrefer(): EnginePrefer {
+  const cur = getEnginePrefer();
+  const next: EnginePrefer =
+    cur === "auto" ? "ai" : cur === "ai" ? "rules" : "auto";
+  setEnginePrefer(next);
+  judgeCache.clear();
+  return next;
+}
+
+export function enginePreferLabel(p: EnginePrefer): string {
+  if (p === "ai") return "engine: AI (forced)";
+  if (p === "rules") return "engine: rules (forced)";
+  return "engine: auto";
+}
 
 const FAST_MS = 420;
 
@@ -409,7 +438,7 @@ async function fetchJudge(subject: string): Promise<JudgeOk | null> {
     const res = await fetch("/api/judge", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ subject }),
+      body: JSON.stringify({ subject, prefer: getEnginePrefer() }),
     });
     const data = (await res.json()) as JudgeResponse;
     if (data.ok && data.analysis) {
@@ -429,7 +458,8 @@ async function runLoad(
   root: HTMLElement,
   subject: string,
 ): Promise<JudgeOk> {
-  const key = subject.trim().toLowerCase();
+  const prefer = getEnginePrefer();
+  const key = `${prefer}:${subject.trim().toLowerCase()}`;
   const cached = judgeCache.get(key);
   if (cached) {
     await playFastLoad(root);

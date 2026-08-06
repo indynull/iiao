@@ -219,7 +219,7 @@ app.get("/api/probe", async (c) => {
  * Falls back to local rules if AI is unavailable.
  */
 app.post("/api/judge", async (c) => {
-  let body: { subject?: string };
+  let body: { subject?: string; prefer?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -229,6 +229,10 @@ app.post("/api/judge", async (c) => {
   if (!subject || subject.length > 2048) {
     return c.json({ ok: false, error: "missing subject" }, 400);
   }
+  // Hidden client override: "auto" | "ai" | "rules"
+  const preferRaw = String(body.prefer || "auto").toLowerCase();
+  const prefer: "auto" | "ai" | "rules" =
+    preferRaw === "ai" || preferRaw === "rules" ? preferRaw : "auto";
 
   const isUrl = looksLikeUrl(subject);
   // Links: fetch the page. Names / LinkedIn walls: public web lookup.
@@ -328,18 +332,22 @@ app.post("/api/judge", async (c) => {
     !!webNote ||
     (personal && !!probe?.ok && !!probe.title);
   // Never treat linkedin.com host as a rules "object pack"
-  const skipAi =
-    (!liProfile && preferRulesComedy(resolved.thing)) ||
-    (!liProfile && preferRulesComedy(subject)) ||
-    isHandcraftedPerson(resolved.thing) ||
-    (personName && !hasGrounding && !isUrl && !liProfile);
+  let skipAi =
+    prefer === "rules"
+      ? true
+      : prefer === "ai"
+        ? false
+        : (!liProfile && preferRulesComedy(resolved.thing)) ||
+          (!liProfile && preferRulesComedy(subject)) ||
+          isHandcraftedPerson(resolved.thing) ||
+          (personName && !hasGrounding && !isUrl && !liProfile);
 
   try {
     if (skipAi) {
-      aiError = "rules pack";
+      aiError = prefer === "rules" ? "prefer rules" : "rules pack";
     } else if (!c.env.AI) {
       aiError = "AI binding missing";
-    } else if (isUrl && !probe?.ok && !webNote && !li) {
+    } else if (isUrl && !probe?.ok && !webNote && !li && prefer !== "ai") {
       aiError = `probe failed: ${probe?.error ?? "fetch"}`;
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
