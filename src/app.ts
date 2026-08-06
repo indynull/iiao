@@ -130,12 +130,21 @@ function answerClass(v: string): string {
 function roadmapSection(a: Analysis): string {
   const r = a.roadmap;
   if (!r?.steps?.length) return "";
-  return `<section class="section section--roadmap">
-    <h2 class="section__label">Board remediation</h2>
+  const label = r.label || "Board remediation";
+  const gapNote =
+    r.band === "hairline"
+      ? `<span>+${r.gap}</span> footnote`
+      : r.band === "style"
+        ? `<span>+${r.gap}</span> style pts`
+        : r.band === "chasm"
+          ? `<span>+${r.gap}</span> chasm`
+          : `<span>+${r.gap}</span> still missing`;
+  return `<section class="section section--roadmap section--roadmap-${esc(r.band || "serious")}">
+    <h2 class="section__label">${esc(label)}</h2>
     <div class="roadmap">
       <div class="roadmap__head">
         <p class="roadmap__title">${esc(r.headline)}</p>
-        <p class="roadmap__gap"><span>+${r.gap}</span> still missing</p>
+        <p class="roadmap__gap">${gapNote}</p>
       </div>
       <ol class="roadmap__steps">
         ${r.steps

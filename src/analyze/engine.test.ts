@@ -80,14 +80,25 @@ describe("single-serving comedy", () => {
     expect(a.confidence).toBeLessThan(100);
     expect(a.roadmap?.steps.length).toBeGreaterThanOrEqual(3);
     expect(a.roadmap?.gap).toBe(100 - a.confidence);
-    expect(a.roadmap?.headline.toLowerCase()).toMatch(
-      /reject|cosplay|embarrass|waste|cute|remediation|audit|homework|no at|half-title|style debt/,
-    );
+    expect(a.roadmap?.band).toBeTruthy();
     const blob = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
     expect(blob).toMatch(
-      /middleware|waf|kernel|guest|denied|cosplay|sit down|fashion|title/,
+      /middleware|waf|kernel|guest|denied|cosplay|sit down|fashion|title|photon|near-miss/,
     );
     expect(blob).not.toMatch(/implement|integrate|enable|seamless|programmable/);
+  });
+
+  it("high-confidence YES gets footnotes, not rebuild homework", () => {
+    const a = analyze("my toaster");
+    expect(a.verdict).toBe("YES");
+    expect(a.confidence).toBeGreaterThanOrEqual(85);
+    expect(a.roadmap?.band === "hairline" || a.roadmap?.band === "style").toBe(
+      true,
+    );
+    expect(a.roadmap?.label?.toLowerCase()).toMatch(/footnote|style/);
+    const steps = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
+    expect(steps).toMatch(/already|footnote|certified|title|optional|vanity|crumb/);
+    expect(steps).not.toMatch(/grow ring 0|delete the delusion|not an os \(yet\)/);
   });
 
   it("certifies joe biden as an OS with systems comedy", () => {

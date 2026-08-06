@@ -58,6 +58,8 @@ export type Analysis = {
   /** Funny upgrade path when not a perfect (100%) OS */
   roadmap?: {
     gap: number;
+    band?: string;
+    label?: string;
     headline: string;
     steps: string[];
   } | null;
