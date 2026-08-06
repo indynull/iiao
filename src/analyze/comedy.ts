@@ -36,7 +36,7 @@ export type JokeResult = {
 
 /** Things we certify as OSes with full systems fanfic. */
 const ABSURD_OS_RE =
-  /\b(shoe|sneaker|boot|sandal|sock|toaster|fridge|refrigerator|microwave|oven|kettle|mug|cup|chair|table|desk|sofa|couch|lamp|bulb|pencil|pen|notebook|calendar|backpack|wallet|keys?|door|window|mirror|toothbrush|toothpaste|soap|towel|pillow|blanket|sandwich|pizza|banana|apple|coffee|tea|beer|wine|plant|cactus|cat|dog|hamster|bird|fish|rock|stone|brick|road|bridge|elevator|escalator|vending machine|atm|remote|remote control|tv|television|radio|clock|watch|alarm|bike|bicycle|car|bus|train|plane|boat|ship|hammer|screwdriver|wrench|spreadsheet|inbox|email|slack|meeting|standup|stand-up|todo|to-do|habit|group chat|chat)\b/i;
+  /\b(shoe|sneaker|boot|sandal|sock|toaster|fridge|refrigerator|microwave|oven|kettle|mug|cup|chair|table|desk|sofa|couch|lamp|bulb|pencil|pen|notebook|calendar|backpack|wallet|keys?|door|window|mirror|toothbrush|toothpaste|soap|towel|pillow|blanket|sandwich|pizza|banana|apple|coffee|tea|beer|wine|plant|cactus|cat|dog|hamster|bird|fish|rock|stone|brick|road|bridge|elevator|escalator|vending machine|atm|remote|remote control|tv|television|radio|clock|watch|alarm|bike|bicycle|car|bus|train|truck|van|plane|boat|ship|donkey|mule|cart|wagon|buggy|carriage|hammer|screwdriver|wrench|spreadsheet|inbox|email|slack|meeting|standup|stand-up|todo|to-do|habit|group chat|chat)\b/i;
 
 /** People / public figures — still YES with systems fanfic, never “is a politician not an OS.” */
 const PERSON_RE =
@@ -213,7 +213,23 @@ function absurdOsBundle(name: string, subject: string, sp: number): Bundle {
       ],
     };
   }
-  if (/\bcar|bus|train|bike|bicycle\b/.test(s)) {
+  if (/\b(donkey|mule|horse).{0,12}(cart|wagon)|\b(cart|wagon|buggy|carriage)\b/.test(s)) {
+    return {
+      answer: "YES",
+      confidence: conf,
+      lead: pick(sp, [
+        `${nm}: axle in ring 0, road as bare metal, donkey as the unfair scheduler.`,
+        `Boot is hitch. Shutdown is unhitch. Cargo is userspace that falls off under load.`,
+      ]),
+      more: [
+        "Wheels dual-boot with no consensus. Expect thrashing and mud.",
+        "syscall clip_clop() — blocking, dusty, no timeout.",
+        "Process table: hay, spite, and one passenger who regrets everything.",
+        "Panic is braying. Recovery is another mile. No status page.",
+      ],
+    };
+  }
+  if (/\b(car|bus|train|bike|bicycle|truck|van)\b/.test(s)) {
     return {
       answer: "YES",
       confidence: conf,
