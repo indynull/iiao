@@ -1,6 +1,9 @@
 /**
- * Lightweight public lookups for bare names / thin claims.
- * Wikipedia REST + DuckDuckGo Instant Answer (no API keys).
+ * Public web summaries for bare names / thin claims (no API keys).
+ * Order: Wikipedia → DuckDuckGo Instant Answer → DuckDuckGo HTML search
+ * → optional page read via r.jina.ai for a longer blurb.
+ *
+ * Note: Google Search requires an API key; we use DDG + open pages instead.
  */
 
 export type WebNote = {
@@ -24,9 +27,16 @@ export async function lookupOnWeb(query: string): Promise<WebNote | null> {
   if (wiki) return wiki;
 
   const ddg = await duckDuckGoNote(q);
-  if (ddg && noteRelevant(q, ddg.blurb)) return ddg;
+  if (ddg && (noteRelevant(q, ddg.blurb) || slugLike(q))) return ddg;
+
+  const html = await duckDuckGoHtmlNote(q);
+  if (html) return html;
 
   return null;
+}
+
+function slugLike(q: string): boolean {
+  return !/\s/.test(q) && /^[a-z0-9._-]+$/i.test(q);
 }
 
 /** Enough query tokens appear in the text (avoids random death-list hits). */
@@ -65,34 +75,28 @@ async function wikipediaNote(q: string): Promise<WebNote | null> {
       query?: { search?: { title: string; snippet?: string }[] };
     };
     const hits = sJson.query?.search ?? [];
-    // "williamhgates" / vanity slugs: one token — trust wiki ranking more
-    const slugQuery = !/\s/.test(q) && /^[a-z0-9._-]+$/i.test(q);
+    const slugQuery = slugLike(q);
 
     for (const hit of hits) {
       if (!hit.title || NOISE_TITLE.test(hit.title)) continue;
-      if (
-        !slugQuery &&
-        !noteRelevant(q, `${hit.title} ${hit.snippet || ""}`)
-      ) {
+      if (!slugQuery && !noteRelevant(q, `${hit.title} ${hit.snippet || ""}`)) {
         continue;
       }
-      const note = await wikipediaSummary(hit.title.replace(/\s+/g, "_"));
+      const note = await wikipediaSummary(hit.title);
       if (!note || /may refer to:/i.test(note.blurb)) continue;
-      if (
-        !slugQuery &&
-        !noteRelevant(q, `${hit.title} ${note.blurb}`)
-      ) {
+      if (!slugQuery && !noteRelevant(q, `${hit.title} ${note.blurb}`)) {
         continue;
       }
-      // Slug queries: require first hit to look like a person page (short proper title)
-      if (slugQuery && !/^[A-Z][\w.'’\-]+(?:\s+[A-Z][\w.'’\-]+){0,4}$/u.test(hit.title)) {
+      if (
+        slugQuery &&
+        !/^[A-Z][\w.'’\-]+(?:\s+[A-Z][\w.'’\-]+){0,4}$/u.test(hit.title)
+      ) {
         continue;
       }
       return note;
     }
 
-    // Exact-ish title attempt for well-known people (Ada_Lovelace)
-    const exact = await wikipediaSummary(q.replace(/\s+/g, "_"));
+    const exact = await wikipediaSummary(q);
     if (
       exact &&
       noteRelevant(q, exact.blurb) &&
@@ -106,31 +110,51 @@ async function wikipediaNote(q: string): Promise<WebNote | null> {
   }
 }
 
-async function wikipediaSummary(titleSlug: string): Promise<WebNote | null> {
+async function wikipediaSummary(title: string): Promise<WebNote | null> {
+  const cleanTitle = title.replace(/_/g, " ");
   try {
-    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(titleSlug)}`;
+    const url =
+      "https://en.wikipedia.org/w/api.php?" +
+      new URLSearchParams({
+        action: "query",
+        prop: "extracts|info",
+        exintro: "1",
+        explaintext: "1",
+        redirects: "1",
+        titles: cleanTitle,
+        inprop: "url",
+        format: "json",
+        origin: "*",
+      });
     const res = await fetch(url, {
       headers: { "user-agent": UA, accept: "application/json" },
       redirect: "follow",
     });
     if (!res.ok) return null;
     const j = (await res.json()) as {
-      type?: string;
-      title?: string;
-      extract?: string;
-      description?: string;
-      content_urls?: { desktop?: { page?: string } };
+      query?: {
+        pages?: Record<
+          string,
+          {
+            title?: string;
+            extract?: string;
+            missing?: boolean;
+            fullurl?: string;
+          }
+        >;
+      };
     };
-    if (j.type === "disambiguation") return null;
-    if (j.title && NOISE_TITLE.test(j.title)) return null;
-    const extract = (j.extract || "").trim();
+    const page = Object.values(j.query?.pages || {})[0];
+    if (!page || page.missing || !page.title) return null;
+    if (NOISE_TITLE.test(page.title)) return null;
+    const extract = (page.extract || "").trim();
     if (extract.length < 40) return null;
-    const blurb = [j.description, extract].filter(Boolean).join(" — ").slice(0, 900);
+    if (/may refer to:/i.test(extract)) return null;
     return {
-      blurb,
+      blurb: extract.slice(0, 900),
       source: "wikipedia",
-      url: j.content_urls?.desktop?.page,
-      title: j.title,
+      url: page.fullurl,
+      title: page.title,
     };
   } catch {
     return null;
@@ -167,7 +191,150 @@ async function duckDuckGoNote(q: string): Promise<WebNote | null> {
       blurb: text.slice(0, 900),
       source: "duckduckgo",
       url: j.AbstractURL || undefined,
+      title: j.Heading || undefined,
     };
+  } catch {
+    return null;
+  }
+}
+
+type HtmlHit = { title: string; url: string; snippet: string };
+
+/** Full-text web search via DuckDuckGo Lite HTML (no API key; Google needs one). */
+async function duckDuckGoHtmlNote(q: string): Promise<WebNote | null> {
+  try {
+    const res = await fetch("https://lite.duckduckgo.com/lite/", {
+      method: "POST",
+      headers: {
+        "user-agent": UA,
+        accept: "text/html",
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ q }).toString(),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const hits = parseDdgLite(html).slice(0, 5);
+    if (!hits.length) return null;
+
+    // Prefer encyclopedia / bio style pages for people
+    const preferred =
+      hits.find((h) => /wikipedia\.org|britannica\.com|biography\.com/i.test(h.url)) ||
+      hits[0]!;
+
+    // Longer summary via public reader when we have a clean URL
+    const deep = await jinaRead(preferred.url);
+    if (deep && deep.length > 80) {
+      const titleGuess =
+        preferred.title.replace(/\s*[-|–—].*$/, "").trim() || preferred.title;
+      if (slugLike(q) || noteRelevant(q, `${titleGuess} ${deep}`)) {
+        return {
+          blurb: deep.slice(0, 900),
+          source: "web-search",
+          url: preferred.url,
+          title: titleGuess.slice(0, 80),
+        };
+      }
+    }
+
+    // Snippet collage
+    const parts = hits
+      .filter((h) => !NOISE_TITLE.test(h.title))
+      .slice(0, 3)
+      .map((h) => `${h.title}: ${h.snippet}`.trim())
+      .filter((s) => s.length > 20);
+    if (!parts.length) return null;
+    const blurb = parts.join(" · ").slice(0, 900);
+    if (!slugLike(q) && !noteRelevant(q, blurb)) return null;
+    return {
+      blurb,
+      source: "web-search",
+      url: preferred.url,
+      title: preferred.title.replace(/\s*[-|–—].*$/, "").trim().slice(0, 80),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseDdgLite(html: string): HtmlHit[] {
+  const out: HtmlHit[] = [];
+  // <a ... href="URL" class='result-link'>Title</a> ... <td class='result-snippet'>...</td>
+  const re =
+    /href=["'](https?:\/\/[^"']+)["'][^>]*class=['"]result-link['"][^>]*>([^<]+)<[\s\S]*?class=['"]result-snippet['"][^>]*>\s*([\s\S]*?)\s*<\/td>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && out.length < 8) {
+    const url = m[1]!;
+    const title = decodeHtml(m[2] || "").trim();
+    const snippet = decodeHtml((m[3] || "").replace(/<[^>]+>/g, " ")).replace(
+      /\s+/g,
+      " ",
+    ).trim();
+    if (!title || !url) continue;
+    if (/duckduckgo\.com/i.test(url)) continue;
+    out.push({ title, url, snippet });
+  }
+  // Alternate attribute order: class before href
+  if (!out.length) {
+    const re2 =
+      /class=['"]result-link['"][^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([^<]+)<[\s\S]*?class=['"]result-snippet['"][^>]*>\s*([\s\S]*?)\s*<\/td>/gi;
+    while ((m = re2.exec(html)) && out.length < 8) {
+      const url = m[1]!;
+      const title = decodeHtml(m[2] || "").trim();
+      const snippet = decodeHtml((m[3] || "").replace(/<[^>]+>/g, " ")).replace(
+        /\s+/g,
+        " ",
+      ).trim();
+      if (!title || !url || /duckduckgo\.com/i.test(url)) continue;
+      out.push({ title, url, snippet });
+    }
+  }
+  return out;
+}
+
+function decodeHtml(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
+/** Free public reader — returns markdown/text of a URL (no key). */
+async function jinaRead(pageUrl: string): Promise<string | null> {
+  try {
+    if (!/^https?:\/\//i.test(pageUrl)) return null;
+    // Skip walled gardens we already know fail
+    if (/linkedin\.com|facebook\.com|instagram\.com/i.test(pageUrl)) return null;
+    const res = await fetch(`https://r.jina.ai/${pageUrl}`, {
+      headers: {
+        "user-agent": UA,
+        accept: "text/plain",
+        "x-return-format": "text",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    let text = (await res.text()).trim();
+    text = text
+      .replace(/^Title:.*$/m, "")
+      .replace(/^URL Source:.*$/m, "")
+      .replace(/^Published Time:.*$/m, "")
+      .replace(/^Markdown Content:\s*/im, "")
+      .replace(/\r/g, "\n");
+    // Prefer prose lines; drop wiki chrome
+    const junk =
+      /^(jump to|main menu|search|donate|create account|log in|contents|hide|toggle|tools|article|talk|read|view source|view history|\[\s*edit|\(top\)|early life and education$|references$|see also$|external links$)/i;
+    const lines = text
+      .split(/\n+/)
+      .map((l) => l.replace(/\s+/g, " ").trim())
+      .filter((l) => l.length > 45 && !junk.test(l) && !/^#{1,6}\s/.test(l));
+    text = lines.join(" ").replace(/\s+/g, " ").trim();
+    if (text.length < 80) return null;
+    return text.slice(0, 1100);
   } catch {
     return null;
   }

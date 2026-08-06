@@ -238,57 +238,51 @@ app.post("/api/judge", async (c) => {
   }
 
   let resolved = resolveThing(subject, probe);
-  // LinkedIn often returns empty 999 pages from cloud IPs — still resolve person
+  const liProfile = isLinkedInProfileUrl(subject);
   const li = resolveLinkedInPerson(subject, probe);
-  if (li && (resolved.source === "host" || linkedInProbeBlocked(probe))) {
+  const liBlocked = liProfile && linkedInProbeBlocked(probe);
+  // Never judge the host "Linkedin" for /in/… profiles
+  if (li && (resolved.source === "host" || liBlocked || liProfile)) {
     resolved = { thing: li.thing, source: li.source, isUrl: true };
   }
 
   const pageBlob = `${probe?.title ?? ""} ${probe?.description ?? ""} ${probe?.textSample ?? ""}`;
-  const liBlocked =
-    isLinkedInProfileUrl(subject) && linkedInProbeBlocked(probe);
 
   let webNote: WebNote | null = null;
   const personName =
     looksLikePersonName(resolved.thing) ||
     (!isUrl && looksLikePersonName(subject)) ||
-    !!li;
+    liProfile;
 
-  // Bare names, or LinkedIn when the profile HTML is walled
+  // Bare names, LinkedIn walls, or thin pages: public web lookup
+  const thinPage = isUrl && !(probe?.title || (probe?.textSample && probe.textSample.length > 80));
   const needWeb =
-    personName &&
     !isHandcraftedPerson(resolved.thing) &&
-    (!(isUrl && probe?.ok && probe.title) || liBlocked);
+    (liProfile || personName || thinPage) &&
+    (thinPage || liBlocked || !isUrl || personName);
 
   if (needWeb) {
-    const slug = li ? linkedInSlug(subject) : null;
-    // Prefer raw LinkedIn vanity slug for wiki search (williamhgates → Bill Gates)
+    const slug = liProfile ? linkedInSlug(subject) : null;
     const queries = [
-      ...(slug && slug !== resolved.thing ? [slug] : []),
+      ...(slug ? [slug] : []),
       resolved.thing,
+      ...(slug ? [`${resolved.thing} linkedin`] : []),
     ];
-    for (const q of queries) {
+    for (const q of [...new Set(queries.filter(Boolean))]) {
       webNote = await lookupOnWeb(q);
-      if (webNote) break;
-    }
-    if (
-      webNote &&
-      !slug &&
-      !noteRelevant(resolved.thing, webNote.blurb)
-    ) {
+      if (webNote?.blurb && webNote.blurb.length > 40) break;
       webNote = null;
     }
-    // Prefer canonical wiki title over "Williamhgates"
-    if (
-      webNote?.title &&
-      looksLikePersonName(webNote.title) &&
-      (li || personName)
-    ) {
-      resolved = {
-        thing: webNote.title,
-        source: `${resolved.source}+${webNote.source}`,
-        isUrl: resolved.isUrl,
-      };
+    // Prefer canonical wiki title (Bill Gates) over vanity slug mash
+    if (webNote?.title && (liProfile || personName)) {
+      const t = webNote.title.trim();
+      if (t.length >= 3 && t.length <= 80 && !/list of/i.test(t)) {
+        resolved = {
+          thing: t,
+          source: `${resolved.source}+${webNote.source}`,
+          isUrl: !!isUrl,
+        };
+      }
     }
   }
 
@@ -333,11 +327,12 @@ app.post("/api/judge", async (c) => {
     (isUrl && !!probe?.ok && !liBlocked && !!(probe.title || probe.textSample)) ||
     !!webNote ||
     (personal && !!probe?.ok && !!probe.title);
+  // Never treat linkedin.com host as a rules "object pack"
   const skipAi =
-    preferRulesComedy(resolved.thing) ||
-    preferRulesComedy(subject) ||
+    (!liProfile && preferRulesComedy(resolved.thing)) ||
+    (!liProfile && preferRulesComedy(subject)) ||
     isHandcraftedPerson(resolved.thing) ||
-    (personName && !hasGrounding && !isUrl);
+    (personName && !hasGrounding && !isUrl && !liProfile);
 
   try {
     if (skipAi) {
@@ -870,13 +865,10 @@ function isBadComedy(j: AiJudge): boolean {
     /\bdon'?t let that fool you\b/.test(t) ||
     /\bonly if you consider\b/.test(t) ||
     /\bjust a (politician|person|human|app)\b/.test(t) ||
-    // Definition / mad-lib templates (cat hairballs, country kernel, etc.)
-    /\bis an operating system\b/.test(t) ||
-    /\bis an os[,.]?\s+with\b/.test(t) ||
+    // Mad-lib templates only (allow funny "is an OS" commitments)
+    /\bis an operating system for (the )?(united states|country|nation)\b/.test(t) ||
     /\bserving as (his|her|their|its) kernel\b/.test(t) ||
     /\bwith a \w[\w\s]{0,40} as (his|her|their|its) kernel\b/.test(t) ||
-    /\bwith [\w\s,'-]{2,60} as [\w\s]{2,40} and [\w\s,'-]{2,60} as\b/.test(t) ||
-    /\bas (his|her|their|its) syscall\b/.test(t) ||
     /\bsuspiciously calm kernel\b/.test(t) ||
     /\bhairballs as\b/.test(t)
   );
