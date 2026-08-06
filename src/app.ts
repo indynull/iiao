@@ -193,10 +193,19 @@ function reportView(
 
       ${roadmapSection(a)}
 
-      <div class="row">
-        <button type="button" class="btn" id="btn-copy">Share</button>
-        <button type="button" class="btn btn--ghost" id="btn-again">Again</button>
-      </div>
+      <section class="section section--try">
+        <h2 class="section__label">Try another</h2>
+        <form class="box box--try" id="compose-again" autocomplete="off">
+          <label class="sr-only" for="subject-again">Link, product, or idea</label>
+          <input id="subject-again" name="subject" type="text"
+            placeholder="a shoe, sunglasses, my boss, a link…"
+            required maxlength="2048" />
+          <button type="submit">Ask</button>
+        </form>
+        <div class="row row--try">
+          <button type="button" class="btn btn--ghost" id="btn-copy">Share this one</button>
+        </div>
+      </section>
     </main>
   `);
 }
@@ -436,14 +445,7 @@ async function runLoad(
 }
 
 function bindHome(root: HTMLElement) {
-  const form = root.querySelector<HTMLFormElement>("#compose");
-  const input = root.querySelector<HTMLInputElement>("#subject");
-  form?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const v = input?.value.trim();
-    if (!v) return;
-    navigate(reportPath(v));
-  });
+  bindCompose(root, "compose", "subject");
   root.querySelectorAll<HTMLButtonElement>("[data-ex]").forEach((btn) => {
     btn.addEventListener("click", () => {
       navigate(reportPath(btn.dataset.ex ?? ""));
@@ -451,7 +453,28 @@ function bindHome(root: HTMLElement) {
   });
 }
 
+function bindCompose(
+  root: HTMLElement,
+  formId: string,
+  inputId: string,
+  opts?: { focus?: boolean },
+) {
+  const form = root.querySelector<HTMLFormElement>(`#${formId}`);
+  const input = root.querySelector<HTMLInputElement>(`#${inputId}`);
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = input?.value.trim();
+    if (!v) return;
+    navigate(reportPath(v));
+  });
+  if (opts?.focus) {
+    // After paint so mobile keyboards and scroll settle
+    window.requestAnimationFrame(() => input?.focus());
+  }
+}
+
 function bindReport(root: HTMLElement, a: Analysis) {
+  bindCompose(root, "compose-again", "subject-again", { focus: true });
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
     const thing = boardVoice(a.stamp || a.subject);
@@ -467,7 +490,6 @@ function bindReport(root: HTMLElement, a: Analysis) {
       toast(url);
     }
   });
-  root.querySelector("#btn-again")?.addEventListener("click", () => navigate("/"));
 }
 
 function bindNav(root: HTMLElement) {

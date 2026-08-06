@@ -459,6 +459,20 @@ p.answer {
   margin-top: 0.5rem;
 }
 
+.section--try {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 2px dashed var(--line-strong);
+}
+
+.box--try {
+  margin-bottom: 0.75rem;
+}
+
+.row--try {
+  margin-top: 0.15rem;
+}
+
 .thinking {
   margin: 0 0 0.85rem;
   font-family: var(--serif);
