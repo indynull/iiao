@@ -409,11 +409,17 @@ app.post("/api/judge", async (c) => {
           ok: probe.ok,
           host: probe.host,
           title: probe.title,
+          status: probe.status,
           error: probe.error,
         }
       : undefined,
     web: webNote
-      ? { source: webNote.source, url: webNote.url, blurb: webNote.blurb.slice(0, 280) }
+      ? {
+          source: webNote.source,
+          url: webNote.url,
+          title: webNote.title,
+          blurb: webNote.blurb.slice(0, 280),
+        }
       : undefined,
     analysis,
   });

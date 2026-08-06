@@ -87,12 +87,8 @@ async function wikipediaNote(q: string): Promise<WebNote | null> {
       if (!slugQuery && !noteRelevant(q, `${hit.title} ${note.blurb}`)) {
         continue;
       }
-      if (
-        slugQuery &&
-        !/^[A-Z][\w.'’\-]+(?:\s+[A-Z][\w.'’\-]+){0,4}$/u.test(hit.title)
-      ) {
-        continue;
-      }
+      // Vanity slugs (williamhgates): wiki search order is enough; skip list pages only
+      if (slugQuery && NOISE_TITLE.test(hit.title)) continue;
       return note;
     }
 
