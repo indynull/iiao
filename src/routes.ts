@@ -2,6 +2,7 @@
 
 export type Route =
   | { name: "home" }
+  | { name: "board" }
   | { name: "report"; subject: string };
 
 function b64urlEncode(s: string): string {
@@ -40,6 +41,8 @@ export function reportPath(subject: string): string {
 
 export function parseLocation(pathname: string, search: string): Route {
   const path = pathname.replace(/\/+$/, "") || "/";
+  // Owner telemetry desk — unlisted
+  if (path === "/board" || path === "/ops") return { name: "board" };
   const m = path.match(/^\/is\/([^/]+)$/);
   if (m) {
     const subject = decodeSubject(m[1]!);

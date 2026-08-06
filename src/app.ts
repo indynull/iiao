@@ -1,6 +1,7 @@
 import { analyze } from "./analyze/engine";
 import type { Analysis } from "./analyze/types";
 import { boardVoice } from "./analyze/voice";
+import { renderBoard } from "./board";
 import { navigate, parseLocation, reportPath } from "./routes";
 
 const EXAMPLES = [
@@ -537,6 +538,13 @@ export async function renderApp(mount: HTMLElement) {
     });
     bindNav(mount);
     bindHome(mount);
+    return;
+  }
+
+  if (route.name === "board") {
+    const prev = (mount as HTMLElement & { __boardTick?: number }).__boardTick;
+    if (prev) window.clearInterval(prev);
+    await renderBoard(mount);
     return;
   }
 
