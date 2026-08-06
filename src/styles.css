@@ -17,6 +17,7 @@
   --orange: #af3a03;
   --purple: #8f3f71;
   --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --cursive: "Dancing Script", "Segoe Script", "Apple Chancery", cursive;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   color-scheme: light;
@@ -219,18 +220,18 @@ body {
 
 .answer {
   margin: 0 0 0.85rem;
-  font-family: var(--serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(3.75rem, 14vw, 6rem);
-  line-height: 1.2;
-  letter-spacing: 0.01em;
-  padding: 0.12em 0.15em 0.18em 0;
+  font-family: var(--cursive);
+  font-style: normal;
+  font-weight: 700;
+  font-size: clamp(4rem, 15vw, 6.5rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  padding: 0.08em 0.12em 0.2em 0;
 }
 
 /* was h1; still the visual punch */
 p.answer {
-  font-size: clamp(3.75rem, 14vw, 6rem);
+  font-size: clamp(4rem, 15vw, 6.5rem);
 }
 
 .answer--yes {

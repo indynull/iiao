@@ -122,9 +122,20 @@ function loadingView(subject: string): string {
 }
 
 function answerClass(v: string): string {
-  if (v === "YES") return "answer--yes";
-  if (v === "NO") return "answer--no";
+  const u = String(v || "").toUpperCase();
+  if (u === "YES") return "answer--yes";
+  if (u === "NO") return "answer--no";
   return "answer--kinda";
+}
+
+/** Display verdict: Yes / No / Kinda (logic stays YES/NO/KINDA). */
+function verdictDisplay(v: string): string {
+  const u = String(v || "").toUpperCase();
+  if (u === "YES") return "Yes";
+  if (u === "NO") return "No";
+  if (u === "KINDA") return "Kinda";
+  if (!v) return "";
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
 }
 
 function roadmapSection(a: Analysis): string {
@@ -180,7 +191,7 @@ function reportView(
               ${esc(thing)}
               ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
             </h1>
-            <p class="answer ${answerClass(answer)}">${esc(answer)}</p>
+            <p class="answer ${answerClass(answer)}">${esc(verdictDisplay(answer))}</p>
             <p class="line">${esc(lead)}</p>
           </div>
           <div class="verdict-card__gauge">
@@ -272,7 +283,7 @@ function setPageMeta(opts: {
 }
 
 function reportSocial(a: Analysis, thing: string) {
-  const title = `${a.verdict} · ${a.confidence}% — ${thing}`;
+  const title = `${verdictDisplay(a.verdict)} · ${a.confidence}% — ${thing}`;
   const description = (a.subtitle || `Is ${thing} an OS?`).slice(0, 200);
   const url = `${location.origin}${reportPath(a.subject)}`;
   const image = `${location.origin}/og?v=${encodeURIComponent(a.verdict)}&c=${a.confidence}&t=${encodeURIComponent(thing)}`;
@@ -487,7 +498,7 @@ function bindReport(root: HTMLElement, a: Analysis) {
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
     const thing = boardVoice(a.stamp || a.subject);
-    const head = `${a.verdict} · ${a.confidence}% — ${thing}`;
+    const head = `${verdictDisplay(a.verdict)} · ${a.confidence}% — ${thing}`;
     const body = [head, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
       .filter(Boolean)
       .join("\n");

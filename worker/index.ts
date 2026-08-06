@@ -65,11 +65,13 @@ app.get("/is/:token", async (c) => {
   // Rules-only for speed/determinism (same packs as UI for known subjects)
   const a = analyze(subject, null);
   const thing = boardVoice(a.stamp || subject);
-  const title = `${a.verdict} · ${a.confidence}% — ${thing}`;
+  const verdictPretty =
+    a.verdict === "YES" ? "Yes" : a.verdict === "NO" ? "No" : "Kinda";
+  const title = `${verdictPretty} · ${a.confidence}% — ${thing}`;
   const description = (a.subtitle || `Is ${thing} an OS?`).slice(0, 200);
   const pageUrl = new URL(reportPath(subject), c.req.url).toString();
   const ogImage = new URL(
-    `/og?v=${encodeURIComponent(a.verdict)}&c=${a.confidence}&t=${encodeURIComponent(thing)}`,
+    `/og?v=${encodeURIComponent(verdictPretty)}&c=${a.confidence}&t=${encodeURIComponent(thing)}`,
     c.req.url,
   ).toString();
 
@@ -87,20 +89,28 @@ app.get("/is/:token", async (c) => {
 
 /** Simple share card image (SVG) for OG previews. */
 app.get("/og", (c) => {
-  const verdict = String(c.req.query("v") || "KINDA").toUpperCase().slice(0, 8);
+  const raw = String(c.req.query("v") || "Kinda").trim();
+  const upper = raw.toUpperCase();
+  const verdict =
+    upper === "YES" || upper === "Y"
+      ? "Yes"
+      : upper === "NO" || upper === "N"
+        ? "No"
+        : raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() || "Kinda";
   const conf = Math.min(100, Math.max(0, Number(c.req.query("c") || 50)));
   const thing = String(c.req.query("t") || "something").slice(0, 48);
   const color =
-    verdict === "YES" ? "#79740e" : verdict === "NO" ? "#9d0006" : "#b57614";
+    verdict === "Yes" ? "#79740e" : verdict === "No" ? "#9d0006" : "#b57614";
+  // cursive via italic Georgia (SVG can't load web fonts reliably for crawlers)
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#fbf1c7"/>
   <rect x="48" y="48" width="1104" height="534" rx="28" fill="#f9f5d7" stroke="#bdae93" stroke-width="4"/>
   <text x="96" y="160" font-family="Georgia, serif" font-size="42" fill="#7c6f64">is it an OS?</text>
-  <text x="96" y="280" font-family="Georgia, serif" font-size="96" fill="${color}" font-weight="400">${escapeXml(verdict)}</text>
-  <text x="96" y="360" font-family="ui-monospace, monospace" font-size="40" fill="#3c3836">${conf}%</text>
-  <text x="96" y="460" font-family="Georgia, serif" font-size="52" fill="#3c3836">${escapeXml(thing)}</text>
-  <text x="96" y="530" font-family="ui-monospace, monospace" font-size="28" fill="#a89984">iiao.algor.ist</text>
+  <text x="96" y="300" font-family="Georgia, 'Times New Roman', serif" font-size="120" font-style="italic" fill="${color}" font-weight="400">${escapeXml(verdict)}</text>
+  <text x="96" y="380" font-family="ui-monospace, monospace" font-size="40" fill="#3c3836">${conf}%</text>
+  <text x="96" y="470" font-family="Georgia, serif" font-size="52" fill="#3c3836">${escapeXml(thing)}</text>
+  <text x="96" y="540" font-family="ui-monospace, monospace" font-size="28" fill="#a89984">iiao.algor.ist</text>
 </svg>`;
   return new Response(svg, {
     headers: {
