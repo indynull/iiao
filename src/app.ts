@@ -167,11 +167,11 @@ function reportView(
       <article class="verdict-card">
         <div class="verdict-card__grid">
           <div class="verdict-card__copy">
-            <p class="about">
+            <h1 class="about">
               ${esc(thing)}
               ${showSource ? `<span class="about__src">from ${esc(a.subject)}</span>` : ""}
-            </p>
-            <h1 class="answer ${answerClass(answer)}">${esc(answer)}</h1>
+            </h1>
+            <p class="answer ${answerClass(answer)}">${esc(answer)}</p>
             <p class="line">${esc(lead)}</p>
           </div>
           <div class="verdict-card__gauge">
@@ -207,6 +207,58 @@ function toast(msg: string) {
   el.textContent = msg;
   el.classList.add("show");
   window.setTimeout(() => el.classList.remove("show"), 2000);
+}
+
+function setPageMeta(opts: {
+  title: string;
+  description: string;
+  url?: string;
+  image?: string;
+}) {
+  document.title = opts.title;
+  const setMeta = (
+    selector: string,
+    content: string,
+    props: Record<string, string>,
+  ) => {
+    let el = document.head.querySelector(selector) as HTMLMetaElement | null;
+    if (!el) {
+      el = document.createElement("meta");
+      for (const [k, v] of Object.entries(props)) el.setAttribute(k, v);
+      document.head.appendChild(el);
+    }
+    el.setAttribute("content", content);
+  };
+  setMeta('meta[name="description"]', opts.description, { name: "description" });
+  setMeta('meta[property="og:title"]', opts.title, { property: "og:title" });
+  setMeta('meta[property="og:description"]', opts.description, {
+    property: "og:description",
+  });
+  setMeta('meta[property="og:type"]', "website", { property: "og:type" });
+  if (opts.url) {
+    setMeta('meta[property="og:url"]', opts.url, { property: "og:url" });
+  }
+  if (opts.image) {
+    setMeta('meta[property="og:image"]', opts.image, { property: "og:image" });
+    setMeta('meta[name="twitter:image"]', opts.image, { name: "twitter:image" });
+    setMeta('meta[name="twitter:card"]', "summary_large_image", {
+      name: "twitter:card",
+    });
+  } else {
+    setMeta('meta[name="twitter:card"]', "summary", { name: "twitter:card" });
+  }
+  setMeta('meta[name="twitter:title"]', opts.title, { name: "twitter:title" });
+  setMeta('meta[name="twitter:description"]', opts.description, {
+    name: "twitter:description",
+  });
+}
+
+function reportSocial(a: Analysis, thing: string) {
+  const title = `${a.verdict} · ${a.confidence}% — ${thing}`;
+  const description = (a.subtitle || `Is ${thing} an OS?`).slice(0, 200);
+  const url = `${location.origin}${reportPath(a.subject)}`;
+  const image = `${location.origin}/og?v=${encodeURIComponent(a.verdict)}&c=${a.confidence}&t=${encodeURIComponent(thing)}`;
+  setPageMeta({ title, description, url, image });
 }
 
 type JudgeResponse = {
@@ -402,7 +454,9 @@ function bindHome(root: HTMLElement) {
 function bindReport(root: HTMLElement, a: Analysis) {
   root.querySelector("#btn-copy")?.addEventListener("click", async () => {
     const url = `${location.origin}${reportPath(a.subject)}`;
-    const body = [a.verdict, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
+    const thing = boardVoice(a.stamp || a.subject);
+    const head = `${a.verdict} · ${a.confidence}% — ${thing}`;
+    const body = [head, a.subtitle, ...(a.roast ?? []).slice(1, 3)]
       .filter(Boolean)
       .join("\n");
     const text = `${body}\n${url}`;
@@ -433,12 +487,19 @@ export async function renderApp(mount: HTMLElement) {
 
   if (route.name === "home") {
     mount.innerHTML = homeView();
+    setPageMeta({
+      title: "Is it an OS?",
+      description:
+        "Paste a link, or describe a product or idea. We will tell you if it is an OS.",
+      url: location.origin + "/",
+    });
     bindNav(mount);
     bindHome(mount);
     return;
   }
 
   mount.innerHTML = loadingView(route.subject);
+  document.title = `Judging… ${route.subject.slice(0, 48)}`;
   bindNav(mount);
 
   const { analysis, thing, engine } = await runLoad(mount, route.subject);
@@ -450,6 +511,10 @@ export async function renderApp(mount: HTMLElement) {
   }
 
   mount.innerHTML = reportView(analysis, { thing, engine });
+  reportSocial(
+    analysis,
+    boardVoice(thing || analysis.stamp || route.subject),
+  );
   bindNav(mount);
   bindReport(mount, analysis);
 }

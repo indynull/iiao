@@ -6,6 +6,7 @@ import { classify, preferRulesComedy } from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
 import { boardVoice, revoiceText } from "../src/analyze/voice";
+import { decodeSubject, reportPath } from "../src/routes";
 import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
 
 export type Env = {
@@ -49,6 +50,103 @@ app.use(
   "/api/*",
   cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"] }),
 );
+
+/** Permalink shell with OG/Twitter tags for crawlers + tab titles. */
+app.get("/is/:token", async (c) => {
+  const subject = decodeSubject(c.req.param("token") || "");
+  const assetUrl = new URL("/", c.req.url);
+  const assetRes = await c.env.ASSETS.fetch(assetUrl);
+  let html = await assetRes.text();
+
+  if (!subject) {
+    return c.html(html, assetRes.status as 200);
+  }
+
+  // Rules-only for speed/determinism (same packs as UI for known subjects)
+  const a = analyze(subject, null);
+  const thing = boardVoice(a.stamp || subject);
+  const title = `${a.verdict} · ${a.confidence}% — ${thing}`;
+  const description = (a.subtitle || `Is ${thing} an OS?`).slice(0, 200);
+  const pageUrl = new URL(reportPath(subject), c.req.url).toString();
+  const ogImage = new URL(
+    `/og?v=${encodeURIComponent(a.verdict)}&c=${a.confidence}&t=${encodeURIComponent(thing)}`,
+    c.req.url,
+  ).toString();
+
+  html = injectSocialMeta(html, {
+    title,
+    description,
+    url: pageUrl,
+    image: ogImage,
+  });
+  return c.html(html, 200, {
+    "Cache-Control": "public, max-age=120, must-revalidate",
+    "CDN-Cache-Control": "public, max-age=120",
+  });
+});
+
+/** Simple share card image (SVG) for OG previews. */
+app.get("/og", (c) => {
+  const verdict = String(c.req.query("v") || "KINDA").toUpperCase().slice(0, 8);
+  const conf = Math.min(100, Math.max(0, Number(c.req.query("c") || 50)));
+  const thing = String(c.req.query("t") || "something").slice(0, 48);
+  const color =
+    verdict === "YES" ? "#79740e" : verdict === "NO" ? "#9d0006" : "#b57614";
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#fbf1c7"/>
+  <rect x="48" y="48" width="1104" height="534" rx="28" fill="#f9f5d7" stroke="#bdae93" stroke-width="4"/>
+  <text x="96" y="160" font-family="Georgia, serif" font-size="42" fill="#7c6f64">is it an OS?</text>
+  <text x="96" y="280" font-family="Georgia, serif" font-size="96" fill="${color}" font-weight="400">${escapeXml(verdict)}</text>
+  <text x="96" y="360" font-family="ui-monospace, monospace" font-size="40" fill="#3c3836">${conf}%</text>
+  <text x="96" y="460" font-family="Georgia, serif" font-size="52" fill="#3c3836">${escapeXml(thing)}</text>
+  <text x="96" y="530" font-family="ui-monospace, monospace" font-size="28" fill="#a89984">iiao.algor.ist</text>
+</svg>`;
+  return new Response(svg, {
+    headers: {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": "public, max-age=3600",
+    },
+  });
+});
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function injectSocialMeta(
+  html: string,
+  meta: { title: string; description: string; url: string; image: string },
+): string {
+  const esc = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+  let out = html
+    .replace(/<title>[\s\S]*?<\/title>/i, "")
+    .replace(/<meta[^>]+name="description"[^>]*>/gi, "")
+    .replace(/<meta[^>]+property="og:[^"]*"[^>]*>/gi, "")
+    .replace(/<meta[^>]+name="twitter:[^"]*"[^>]*>/gi, "");
+  const block = `
+    <title>${esc(meta.title)}</title>
+    <meta name="description" content="${esc(meta.description)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${esc(meta.title)}" />
+    <meta property="og:description" content="${esc(meta.description)}" />
+    <meta property="og:url" content="${esc(meta.url)}" />
+    <meta property="og:image" content="${esc(meta.image)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${esc(meta.title)}" />
+    <meta name="twitter:description" content="${esc(meta.description)}" />
+    <meta name="twitter:image" content="${esc(meta.image)}" />
+  `;
+  return out.replace(/<head[^>]*>/i, (h) => `${h}\n${block}`);
+}
 
 app.get("/api/health", (c) =>
   c.json({
@@ -851,4 +949,22 @@ function extract(html: string, finalUrl: string) {
   };
 }
 
-export default app;
+export default {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    // Always handle API, permalinks (OG inject), and share cards in the worker
+    if (
+      path.startsWith("/api/") ||
+      path.startsWith("/is/") ||
+      path === "/og"
+    ) {
+      return app.fetch(request, env, ctx);
+    }
+    return env.ASSETS.fetch(request);
+  },
+};

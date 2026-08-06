@@ -124,6 +124,15 @@ describe("single-serving comedy", () => {
     );
     expect(blob).toMatch(/your cat|guest|kernel|nap|irq|lap|ebusy|instinct/);
   });
+
+  it("donkey cart remediation is cart-specific, not appliance filler", () => {
+    const a = analyze("donkey cart");
+    expect(a.verdict).toBe("YES");
+    expect(a.subtitle.toLowerCase()).toMatch(/axle|hitch|donkey|cart|clip_clop|bare metal/);
+    const steps = (a.roadmap?.steps ?? []).join(" ").toLowerCase();
+    expect(steps).toMatch(/axle|donkey|clip_clop|bray|hay|cargo|wheel/);
+    expect(steps).not.toMatch(/appliances that didn't ask|fail louder\. quiet competence is for appliances/);
+  });
 });
 
 describe("permalink", () => {

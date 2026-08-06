@@ -209,7 +209,7 @@ function absurdYesSteps(t: string, gap: number, sp: number): string[] {
       `Stop acting surprised when userspace segfaults. ${t} scheduled that.`,
       `Publish a man page that insults the reader. Full OSes have contempt baked in.`,
       `Refuse a status page. If ${t} is down, the room already knows.`,
-      `Want 100%? Fail more theatrically. Quiet competence is for boring hardware.`,
+      `Want 100%? Make the panic match the object — not a generic appliance lecture.`,
     ],
     [
       `Certified. Congrats. Own the crashes — ${t} doesn't get a PR team.`,
@@ -243,22 +243,29 @@ function specialSteps(
 ): string[] | null {
   const s = thing.toLowerCase();
 
-  if (/\b(donkey|mule|horse).*(cart|wagon)|cart|wagon|buggy|carriage\b/.test(s) ||
-      /\b(cart|wagon)\b/.test(s)) {
+  // Carts / wagons — must not fall through to generic "appliances" pack
+  if (/\b(cart|wagon|buggy|carriage|donkey|mule)\b/.test(s)) {
     return pick(sp, [
       [
         `Axle is ring 0. Road is bare metal. Stop romanticizing the straw.`,
         `Donkey is the scheduler: unfair, opinionated, refuses nice priorities.`,
         `Wheels are dual-boot with no consensus protocol. Expect thrashing.`,
         `Cargo is userspace. When it falls off, that's a core dump with mud.`,
-        `+${gap}: invent brakes that aren't "hope" and a panic that isn't braying.`,
+        `+${gap}: invent brakes that aren't "hope" — panic may remain braying. Loud is fine.`,
       ],
       [
-        `${thing.trim()} already hauls state across town. Act like a kernel.`,
+        `${short(thing)} already hauls state across town. Act like a kernel.`,
         `syscall clip_clop() — blocking, dusty, no timeout.`,
         `Process table: hay, spite, and one passenger who regrets everything.`,
         `Boot = hitch. Shutdown = unhitch. No cloud region. Pure.`,
         `Close +${gap} by surviving a pothole without rebooting the donkey.`,
+      ],
+      [
+        `Already loud enough. The +${gap} is not "fail louder" — it's steer better.`,
+        `Braying is your dmesg. Good. Now log the cargo drops with PIDs.`,
+        `Scheduler priority: the animal. Everything else is a suggestion.`,
+        `Mud is write amplification. Own the dirty pages.`,
+        `Quiet competence is for kettles. ${short(thing)} should stay theatrical.`,
       ],
     ]);
   }
