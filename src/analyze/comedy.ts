@@ -56,20 +56,24 @@ const PRETEND_OS_RE =
   /\b(\w[\w\s]{0,24})\s*os\b|operating system|the os for\b/i;
 
 /**
- * Prefer handcrafted packs whenever we have one.
- * Models default to “X is an operating system, with Y as crashes and Z as kernel.”
+ * Prefer handcrafted packs for known objects / celebrities.
+ * Generic multi-word names are NOT here — those get a web lookup + model.
  */
 export function preferRulesComedy(subject: string): boolean {
   const s = subject.trim();
   if (!s) return false;
   return (
     PERSON_RE.test(s) ||
-    looksLikePersonName(s) ||
     ABSURD_OS_RE.test(s) ||
     ACCESSORY_RE.test(s) ||
     MARKETING_HOST_RE.test(s) ||
     REAL_OS_RE.test(s)
   );
+}
+
+/** Handcrafted political / celebrity packs only. */
+export function isHandcraftedPerson(subject: string): boolean {
+  return PERSON_RE.test(subject.trim());
 }
 
 export function spice(s: string): number {

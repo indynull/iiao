@@ -4,12 +4,15 @@ import { resolveThing } from "../src/analyze/thing";
 import { analyze } from "../src/analyze/engine";
 import {
   classify,
+  isHandcraftedPerson,
   isPersonalSite,
+  looksLikePersonName,
   preferRulesComedy,
 } from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
 import { boardVoice, revoiceText } from "../src/analyze/voice";
+import { lookupOnWeb, noteRelevant, type WebNote } from "../src/analyze/web-lookup";
 import { decodeSubject, reportPath } from "../src/routes";
 import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
 
@@ -222,7 +225,7 @@ app.post("/api/judge", async (c) => {
   }
 
   const isUrl = looksLikeUrl(subject);
-  // Links: always fetch page text before judging (Workers AI cannot browse itself)
+  // Links: fetch the page. Names: look up the public web. Model cannot browse alone.
   let probe: ProbeResult | null = null;
   if (isUrl) {
     probe = await probeUrl(subject);
@@ -230,6 +233,24 @@ app.post("/api/judge", async (c) => {
 
   const resolved = resolveThing(subject, probe);
   const pageBlob = `${probe?.title ?? ""} ${probe?.description ?? ""} ${probe?.textSample ?? ""}`;
+
+  let webNote: WebNote | null = null;
+  const personName =
+    looksLikePersonName(resolved.thing) ||
+    (!isUrl && looksLikePersonName(subject));
+  // Bare names (and thin person claims) get a public lookup when we have no page body
+  if (
+    personName &&
+    !isHandcraftedPerson(resolved.thing) &&
+    !(isUrl && probe?.ok)
+  ) {
+    webNote = await lookupOnWeb(resolved.thing);
+    // Drop irrelevant hits (search often returns random list pages)
+    if (webNote && !noteRelevant(resolved.thing, webNote.blurb)) {
+      webNote = null;
+    }
+  }
+
   const contextBits = [
     `User input: ${subject}`,
     `Resolved thing to judge: ${resolved.thing}`,
@@ -244,32 +265,42 @@ app.post("/api/judge", async (c) => {
             `Snippet: ${(probe.textSample ?? "").slice(0, 1200)}`,
           ].join("\n")
         : `Fetch failed: ${probe?.error ?? "unknown"} — judge only from the URL string.`
-      : "No URL — free-form product/idea description.",
-  ].join("\n");
+      : "No URL — free-form product/idea/person description.",
+    webNote
+      ? `Public web note (${webNote.source}${webNote.url ? `; ${webNote.url}` : ""}):\n${webNote.blurb}`
+      : personName
+        ? "No reliable public web blurb found for this name."
+        : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   let analysis: Analysis | undefined;
   let engine: "workers-ai" | "rules" = "rules";
   let aiError: string | undefined;
 
-  // Handcrafted packs for known bits; URLs with page text go to the model
+  // Objects / celebrity packs stay rules. People with page or web notes go to the model.
   const personal = isPersonalSite({
     blob: pageBlob,
     displayName: resolved.thing,
     subject,
     host: probe?.host,
   });
+  const hasGrounding =
+    (isUrl && !!probe?.ok) || !!webNote || (personal && !!probe?.ok);
   const skipAi =
     preferRulesComedy(resolved.thing) ||
     preferRulesComedy(subject) ||
-    personal;
+    isHandcraftedPerson(resolved.thing) ||
+    // unknown person with zero grounding → diversified rules packs, not empty AI
+    (personName && !hasGrounding && !isUrl);
 
   try {
     if (skipAi) {
       aiError = "rules pack";
     } else if (!c.env.AI) {
       aiError = "AI binding missing";
-    } else if (isUrl && !probe?.ok) {
-      // Don't invent page content we failed to fetch
+    } else if (isUrl && !probe?.ok && !webNote) {
       aiError = `probe failed: ${probe?.error ?? "fetch"}`;
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
@@ -341,6 +372,9 @@ app.post("/api/judge", async (c) => {
           title: probe.title,
           error: probe.error,
         }
+      : undefined,
+    web: webNote
+      ? { source: webNote.source, url: webNote.url, blurb: webNote.blurb.slice(0, 280) }
       : undefined,
     analysis,
   });
@@ -491,7 +525,7 @@ E) Ordinary apps/SaaS not pretending:
 
 BANNED OPENERS (instant fail): "X is a Y, not an operating system", "no matter how…", "don't let that fool you", "only if you consider"
 
-If Background includes a fetched page, judge the *product/person/site* the page is about — use title, meta, and snippet. Do not invent a different company from the hostname alone when the page names a person or product.
+If Background includes a fetched page or public web note, ground jokes in those facts (role, work, biography). Still YES for people with wild OS analogies — never "X is a person, not an OS." Do not invent employers or fame that the background does not support; if the web note is empty, keep it abstract.
 
 Judge only THING. Unique lines every time (fridge ≠ toaster ≠ Biden ≠ shoe).
 
