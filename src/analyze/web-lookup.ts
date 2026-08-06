@@ -7,6 +7,8 @@ export type WebNote = {
   blurb: string;
   source: string;
   url?: string;
+  /** Canonical page title when available (e.g. wiki "Bill Gates") */
+  title?: string;
 };
 
 const UA = "IIAO/0.5 (+https://iiao.algor.ist; satire OS board; research)";
@@ -63,18 +65,30 @@ async function wikipediaNote(q: string): Promise<WebNote | null> {
       query?: { search?: { title: string; snippet?: string }[] };
     };
     const hits = sJson.query?.search ?? [];
+    // "williamhgates" / vanity slugs: one token — trust wiki ranking more
+    const slugQuery = !/\s/.test(q) && /^[a-z0-9._-]+$/i.test(q);
 
     for (const hit of hits) {
       if (!hit.title || NOISE_TITLE.test(hit.title)) continue;
-      if (!noteRelevant(q, `${hit.title} ${hit.snippet || ""}`)) continue;
-      const note = await wikipediaSummary(hit.title.replace(/\s+/g, "_"));
       if (
-        note &&
-        !/may refer to:/i.test(note.blurb) &&
-        noteRelevant(q, `${hit.title} ${note.blurb}`)
+        !slugQuery &&
+        !noteRelevant(q, `${hit.title} ${hit.snippet || ""}`)
       ) {
-        return note;
+        continue;
       }
+      const note = await wikipediaSummary(hit.title.replace(/\s+/g, "_"));
+      if (!note || /may refer to:/i.test(note.blurb)) continue;
+      if (
+        !slugQuery &&
+        !noteRelevant(q, `${hit.title} ${note.blurb}`)
+      ) {
+        continue;
+      }
+      // Slug queries: require first hit to look like a person page (short proper title)
+      if (slugQuery && !/^[A-Z][\w.'’\-]+(?:\s+[A-Z][\w.'’\-]+){0,4}$/u.test(hit.title)) {
+        continue;
+      }
+      return note;
     }
 
     // Exact-ish title attempt for well-known people (Ada_Lovelace)
@@ -116,6 +130,7 @@ async function wikipediaSummary(titleSlug: string): Promise<WebNote | null> {
       blurb,
       source: "wikipedia",
       url: j.content_urls?.desktop?.page,
+      title: j.title,
     };
   } catch {
     return null;

@@ -2,6 +2,7 @@
  * Resolve "the thing" being judged — product/idea, not the blog packaging.
  */
 import type { ProbeResult } from "./types";
+import { resolveLinkedInPerson } from "./linkedin";
 
 const STOP = new Set(
   [
@@ -204,6 +205,10 @@ export function resolveThing(
   if (!isUrl) {
     return { thing: input || "the void", source: "claim", isUrl: false };
   }
+
+  // LinkedIn /in/… — person from title or slug (host "linkedin" is useless)
+  const li = resolveLinkedInPerson(input, probe ?? null);
+  if (li) return { thing: li.thing, source: li.source, isUrl: true };
 
   if (probe?.ok) {
     const fromP = fromProbe(probe);

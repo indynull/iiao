@@ -13,6 +13,12 @@ import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
 import { boardVoice, revoiceText } from "../src/analyze/voice";
 import { lookupOnWeb, noteRelevant, type WebNote } from "../src/analyze/web-lookup";
+import {
+  isLinkedInProfileUrl,
+  linkedInProbeBlocked,
+  linkedInSlug,
+  resolveLinkedInPerson,
+} from "../src/analyze/linkedin";
 import { decodeSubject, reportPath } from "../src/routes";
 import type { Analysis, ProbeResult, ProbeSignals } from "../src/analyze/types";
 
@@ -225,29 +231,64 @@ app.post("/api/judge", async (c) => {
   }
 
   const isUrl = looksLikeUrl(subject);
-  // Links: fetch the page. Names: look up the public web. Model cannot browse alone.
+  // Links: fetch the page. Names / LinkedIn walls: public web lookup.
   let probe: ProbeResult | null = null;
   if (isUrl) {
     probe = await probeUrl(subject);
   }
 
-  const resolved = resolveThing(subject, probe);
+  let resolved = resolveThing(subject, probe);
+  // LinkedIn often returns empty 999 pages from cloud IPs — still resolve person
+  const li = resolveLinkedInPerson(subject, probe);
+  if (li && (resolved.source === "host" || linkedInProbeBlocked(probe))) {
+    resolved = { thing: li.thing, source: li.source, isUrl: true };
+  }
+
   const pageBlob = `${probe?.title ?? ""} ${probe?.description ?? ""} ${probe?.textSample ?? ""}`;
+  const liBlocked =
+    isLinkedInProfileUrl(subject) && linkedInProbeBlocked(probe);
 
   let webNote: WebNote | null = null;
   const personName =
     looksLikePersonName(resolved.thing) ||
-    (!isUrl && looksLikePersonName(subject));
-  // Bare names (and thin person claims) get a public lookup when we have no page body
-  if (
+    (!isUrl && looksLikePersonName(subject)) ||
+    !!li;
+
+  // Bare names, or LinkedIn when the profile HTML is walled
+  const needWeb =
     personName &&
     !isHandcraftedPerson(resolved.thing) &&
-    !(isUrl && probe?.ok)
-  ) {
-    webNote = await lookupOnWeb(resolved.thing);
-    // Drop irrelevant hits (search often returns random list pages)
-    if (webNote && !noteRelevant(resolved.thing, webNote.blurb)) {
+    (!(isUrl && probe?.ok && probe.title) || liBlocked);
+
+  if (needWeb) {
+    const slug = li ? linkedInSlug(subject) : null;
+    // Prefer raw LinkedIn vanity slug for wiki search (williamhgates → Bill Gates)
+    const queries = [
+      ...(slug && slug !== resolved.thing ? [slug] : []),
+      resolved.thing,
+    ];
+    for (const q of queries) {
+      webNote = await lookupOnWeb(q);
+      if (webNote) break;
+    }
+    if (
+      webNote &&
+      !slug &&
+      !noteRelevant(resolved.thing, webNote.blurb)
+    ) {
       webNote = null;
+    }
+    // Prefer canonical wiki title over "Williamhgates"
+    if (
+      webNote?.title &&
+      looksLikePersonName(webNote.title) &&
+      (li || personName)
+    ) {
+      resolved = {
+        thing: webNote.title,
+        source: `${resolved.source}+${webNote.source}`,
+        isUrl: resolved.isUrl,
+      };
     }
   }
 
@@ -256,7 +297,7 @@ app.post("/api/judge", async (c) => {
     `Resolved thing to judge: ${resolved.thing}`,
     `Resolution source: ${resolved.source}`,
     isUrl
-      ? probe?.ok
+      ? probe?.ok && !liBlocked
         ? [
             `Fetched page OK (${probe.host ?? "site"})`,
             `Page title: ${probe.title ?? "—"}`,
@@ -264,7 +305,9 @@ app.post("/api/judge", async (c) => {
             `Headings: ${(probe.headings ?? []).slice(0, 8).join(" · ") || "—"}`,
             `Snippet: ${(probe.textSample ?? "").slice(0, 1200)}`,
           ].join("\n")
-        : `Fetch failed: ${probe?.error ?? "unknown"} — judge only from the URL string.`
+        : liBlocked
+          ? `LinkedIn blocked the page fetch (common for cloud scrapers). Judging the profile person "${resolved.thing}" using public web notes if any.`
+          : `Fetch failed: ${probe?.error ?? "unknown"} — judge only from the URL string.`
       : "No URL — free-form product/idea/person description.",
     webNote
       ? `Public web note (${webNote.source}${webNote.url ? `; ${webNote.url}` : ""}):\n${webNote.blurb}`
@@ -279,7 +322,7 @@ app.post("/api/judge", async (c) => {
   let engine: "workers-ai" | "rules" = "rules";
   let aiError: string | undefined;
 
-  // Objects / celebrity packs stay rules. People with page or web notes go to the model.
+  // Objects / celebrity packs stay rules. Grounded people/URLs go to the model.
   const personal = isPersonalSite({
     blob: pageBlob,
     displayName: resolved.thing,
@@ -287,12 +330,13 @@ app.post("/api/judge", async (c) => {
     host: probe?.host,
   });
   const hasGrounding =
-    (isUrl && !!probe?.ok) || !!webNote || (personal && !!probe?.ok);
+    (isUrl && !!probe?.ok && !liBlocked && !!(probe.title || probe.textSample)) ||
+    !!webNote ||
+    (personal && !!probe?.ok && !!probe.title);
   const skipAi =
     preferRulesComedy(resolved.thing) ||
     preferRulesComedy(subject) ||
     isHandcraftedPerson(resolved.thing) ||
-    // unknown person with zero grounding → diversified rules packs, not empty AI
     (personName && !hasGrounding && !isUrl);
 
   try {
@@ -300,7 +344,7 @@ app.post("/api/judge", async (c) => {
       aiError = "rules pack";
     } else if (!c.env.AI) {
       aiError = "AI binding missing";
-    } else if (isUrl && !probe?.ok && !webNote) {
+    } else if (isUrl && !probe?.ok && !webNote && !li) {
       aiError = `probe failed: ${probe?.error ?? "fetch"}`;
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);

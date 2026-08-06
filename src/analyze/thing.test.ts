@@ -38,4 +38,23 @@ describe("resolveThing", () => {
     expect(r.thing).toMatch(/Ali-Akber Saifee/i);
     expect(r.thing.toLowerCase()).not.toBe("ali");
   });
+
+  it("resolves LinkedIn /in/ slug to a person, not host Linkedin", () => {
+    const blocked = resolveThing("https://www.linkedin.com/in/williamhgates", {
+      ok: true,
+      status: 999,
+      host: "www.linkedin.com",
+      title: undefined,
+      textSample: "",
+    });
+    expect(blocked.thing.toLowerCase()).not.toBe("linkedin");
+    expect(blocked.thing.toLowerCase()).toMatch(/william|gates/);
+
+    const titled = resolveThing("https://www.linkedin.com/in/williamhgates", {
+      ok: true,
+      host: "www.linkedin.com",
+      title: "Bill Gates - Chair, Gates Foundation | LinkedIn",
+    });
+    expect(titled.thing).toMatch(/Bill Gates/i);
+  });
 });
