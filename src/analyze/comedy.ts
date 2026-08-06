@@ -64,6 +64,7 @@ export function preferRulesComedy(subject: string): boolean {
   if (!s) return false;
   return (
     PERSON_RE.test(s) ||
+    looksLikePersonName(s) ||
     ABSURD_OS_RE.test(s) ||
     ACCESSORY_RE.test(s) ||
     MARKETING_HOST_RE.test(s) ||
@@ -80,11 +81,60 @@ export function spice(s: string): number {
   return (h >>> 0) / 4294967296;
 }
 
+/** Personal homepage / résumé — not a SaaS "platform OS". */
+export function isPersonalSite(ctx: {
+  blob: string;
+  displayName?: string;
+  subject?: string;
+  host?: string | null;
+}): boolean {
+  const t = `${ctx.displayName || ""} ${ctx.subject || ""} ${ctx.blob || ""} ${ctx.host || ""}`.toLowerCase();
+  if (
+    /\b(r[ée]sum[ée]|curriculum vitae|\bc\.?v\.?\b|portfolio|about me|personal site)\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // Engineer bios without product pricing
+  if (
+    /\b(software engineer|full[- ]stack|backend engineer|years of experience|professional experience)\b/.test(
+      t,
+    ) &&
+    !/\b(pricing|free trial|sign up|get started|enterprise plan)\b/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function looksLikePersonName(name: string): boolean {
+  const n = name.trim();
+  // Two+ capitalized tokens, not a product phrase
+  if (!/^[A-ZÀ-ÖØ-Þ][\w.'’\-]+(?:\s+[A-ZÀ-ÖØ-Þ][\w.'’\-]+){1,4}$/u.test(n)) {
+    return false;
+  }
+  if (/\b(OS|Inc|Ltd|Labs|Cloud|Platform|Software)\b/i.test(n)) return false;
+  return true;
+}
+
 export function classify(ctx: ComedyCtx): ComedyMode {
   const name = `${ctx.subject} ${ctx.displayName}`;
 
+  // Résumés / personal sites before marketing (blob may mention Cloudflare, Stripe, …)
+  if (isPersonalSite(ctx) || looksLikePersonName(ctx.displayName)) {
+    return "absurd_os";
+  }
+
   if (REAL_OS_RE.test(ctx.blob) || REAL_OS_RE.test(name)) return "real_os";
-  if (ctx.signals.kernel >= 4 && ctx.signals.openSource >= 2) return "real_os";
+  // Real kernel docs — not a resume that lists open-source work
+  if (
+    ctx.signals.kernel >= 4 &&
+    ctx.signals.openSource >= 2 &&
+    !isPersonalSite(ctx)
+  ) {
+    return "real_os";
+  }
 
   const corp =
     ctx.signals.saas +
@@ -95,8 +145,9 @@ export function classify(ctx: ComedyCtx): ComedyMode {
 
   // Named "… OS" software / platform cosplay
   if (
-    MARKETING_HOST_RE.test(ctx.blob) ||
     MARKETING_HOST_RE.test(name) ||
+    (MARKETING_HOST_RE.test(ctx.blob) &&
+      (ctx.signals.pricing >= 1 || ctx.signals.saas >= 2 || corp >= 6)) ||
     (/\bos\b/i.test(ctx.displayName) && corp >= 2) ||
     (corp >= 6 && ctx.signals.kernel === 0) ||
     (ctx.signals.os > 0 && ctx.signals.kernel === 0 && corp >= 3) ||
@@ -116,7 +167,22 @@ export function classify(ctx: ComedyCtx): ComedyMode {
 }
 
 function pick<T>(sp: number, items: T[]): T {
+  if (!items.length) throw new Error("pick: empty");
   return items[Math.floor(sp * items.length) % items.length]!;
+}
+
+/** Stable per-string pack pick — more uniform than float spice for long names. */
+function pickByName<T>(name: string, items: T[]): T {
+  if (!items.length) throw new Error("pickByName: empty");
+  let h = 2166136261;
+  const s = name.toLowerCase();
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  // mix length so similar prefixes diverge
+  h ^= Math.imul(s.length + 1, 0x9e3779b9);
+  return items[(h >>> 0) % items.length]!;
 }
 
 function n(s: string): string {
@@ -132,6 +198,15 @@ function absurdOsBundle(name: string, subject: string, sp: number): Bundle {
 
   const person = personBundle(nm, s, sp, conf);
   if (person) return person;
+  // Personal sites / multi-word names that didn't hit PERSON_RE celebrities
+  if (
+    looksLikePersonName(nm) ||
+    /\b(r[ée]sum[ée]|curriculum vitae|\bcv\b|portfolio|years of experience)\b/i.test(
+      s,
+    )
+  ) {
+    return personSiteBundle(nm, sp, conf);
+  }
 
   if (/\bshoe|sneaker|sandal|boot|sock\b/.test(s)) {
     return {
@@ -354,22 +429,130 @@ function personBundle(
       ],
     };
   }
-  if (!PERSON_RE.test(s)) return null;
+  if (!PERSON_RE.test(s) && !looksLikePersonName(nm)) return null;
+  return personSiteBundle(nm, sp, conf);
+}
 
-  return {
-    answer: "YES",
-    confidence: Math.round(84 + sp * 8),
-    lead: pick(sp, [
-      `Schedules other humans, loses file handles, still claims five-nines of charisma.`,
-      `Boot is coffee. Panic is the group chat. Recovery is a nap that never comes.`,
-    ]),
-    more: [
-      "Process table: obligations. Zombies: unread emails with teeth.",
-      "Syscalls include sigh(), ghost(), and overcommit().",
-      "No status page. Plenty of status.",
-      "We certify the household kernel. Charm negotiable.",
-    ],
-  };
+/**
+ * Humans / résumés as OSes — never SaaS marketing, never one shared script
+ * with only the name swapped. Each pack is a full distinct monologue.
+ */
+function personSiteBundle(nm: string, sp: number, conf: number): Bundle {
+  const c = Math.round(84 + sp * 8);
+  const packs: Bundle[] = [
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} boots from coffee and ships a career kernel with too many long-running daemons.`,
+      more: [
+        `${nm}'s process table is half open tabs, half unfinished side projects.`,
+        `syscall promote() blocks until someone more senior reaps a role.`,
+        `On-call is the realtime thread. Everything else is nice-adjusted hope.`,
+        `No status page — just a LinkedIn that claims five-nines of employability.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} is an OS for one human machine: scheduler hostile, uptime negotiable.`,
+      more: [
+        `The CV is the bootloader. Interviews are POST. Offer letters are mount points.`,
+        `${nm} overcommits RAM on friendships and under-provisions sleep.`,
+        `Panic is a Slack message at 2am. Recovery is "looking into it."`,
+        `We certify the substrate. Charm and PTO remain userspace problems.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `Ring 0 for ${nm} is whatever paid the rent this quarter.`,
+      more: [
+        `Side projects are zombie processes ${nm} refuses to kill.`,
+        `Meetings are softIRQs. Focus never gets a fair timeslice.`,
+        `Skills listed on the page are exported symbols; depth is undefined.`,
+        `Title granted. The man page is a résumé PDF with optimistic versioning.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} schedules ambition like a batch job and dreams like a cron that never fires.`,
+      more: [
+        `Inbox zero is a myth ${nm} recompiles every Monday.`,
+        `Dependencies: caffeine, Wi-Fi, and one person who believes the roadmap.`,
+        `Segfaults look like context-switching mid-sentence.`,
+        `We approve the kernel. We mock the release notes (also known as "summary").`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} runs userspace emotions on a kernel of deadlines.`,
+      more: [
+        `Git history is the only honest audit log ${nm} keeps.`,
+        `ioctl(IMPOSTOR) returns EAGAIN forever — correct behavior.`,
+        `Open source is the long-lived service; the day job is the noisy neighbor.`,
+        `Board certifies ${nm}. HR still wants a different config format.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `Boot sequence for ${nm}: alarm, denial, deploy, documentation debt.`,
+      more: [
+        `${nm}'s OOM killer targets hobbies first, then sleep.`,
+        `Networking stack: weak ties, strong opinions, occasional packet loss at parties.`,
+        `Security model: trust but verify, then ship because Friday.`,
+        `Uptime measured in years of experience — not wall-clock honesty.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} pretends to be a platform for other people's priorities. Kernel says no.`,
+      more: [
+        `The real init is whatever ${nm} protected from the calendar.`,
+        `Context switches cost more than advertised in the interview.`,
+        `Core dump format: long email with "quick thought" in the subject.`,
+        `We grant OS status for one body. Multi-tenant life is still experimental.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `Process model for ${nm}: one foreground task, forty background worries.`,
+      more: [
+        `Nice value of self-care: reniced to idle by the boss thread.`,
+        `${nm} mounts coffee as a critical filesystem. Unmount = panic.`,
+        `Changelog is empty. Personality is the only release artifact.`,
+        `Certified with footnotes. The footnotes are also unfinished.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `${nm} is a single-user OS with multiplayer drama enabled by default.`,
+      more: [
+        `Root password is a childhood nickname ${nm} will not rotate.`,
+        `Background jobs: guilt, laundry, and one novel outline from 2019.`,
+        `Network partition from group chats is a feature request, not a bug.`,
+        `We stamp YES. The warranty is emotional and void in production.`,
+      ],
+    },
+    {
+      answer: "YES",
+      confidence: c,
+      lead: `Init for ${nm} is a playlist; shutdown is never clean.`,
+      more: [
+        `${nm} treats boundaries like optional kernel modules — often not loaded.`,
+        `Memory leak: replaying conversations at 1am.`,
+        `File system layout: Downloads chaos, Desktop denial, Documents myth.`,
+        `Board signs off. Therapy is the only recommended fsck.`,
+      ],
+    },
+  ];
+  // Name hash — not spice float — so Eliska ≠ Morgan ≠ Ali
+  return pickByName(nm, packs);
 }
 
 function accessoryBundle(name: string, subject: string, sp: number): Bundle {

@@ -490,6 +490,43 @@ function specialSteps(
     ]);
   }
 
+  // Generic multi-word person / résumé names — unique per name via spice
+  if (
+    answer === "YES" &&
+    /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ.'’\-]*(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ.'’\-]*){1,4}$/u.test(
+      thing.trim(),
+    ) &&
+    !/\b(OS|Inc|Ltd|Labs|Cloud|Platform)\b/i.test(thing)
+  ) {
+    if (band === "hairline" || band === "style") {
+      return pick(sp, [
+        [
+          `${t} is already YES. +${gap} is résumé whitespace, not a missing kernel.`,
+          `Optional: one fewer meeting softIRQ. Vanity metric.`,
+          `Keep the career process table honest — kill one zombie side project.`,
+          `Status page still banned. LinkedIn is loud enough.`,
+          `Footnotes closed. Go touch grass or a keyboard.`,
+        ],
+        [
+          `Crown fits ${t}. +${gap} is sleep debt accounting.`,
+          `Document one syscall ${t} actually supports. Delete three buzzwords.`,
+          `On-call remains realtime. Hobbies remain best-effort.`,
+          `We are not rewriting your bootloader (the coffee).`,
+          `Style points only. Ontology settled.`,
+        ],
+      ]);
+    }
+    return pick(sp, [
+      [
+        `${t} needs +${gap}: fewer exported symbols, more depth.`,
+        `Reap zombie projects. Overcommit is not a personality.`,
+        `Scheduler: protect one deep-work timeslice from the calendar.`,
+        `Panic less in email. Log more in git.`,
+        `Then reapply for the last points.`,
+      ],
+    ]);
+  }
+
   if (/\bbiden\b/.test(s) && answer === "YES") {
     if (band === "hairline" || band === "style") {
       return [

@@ -26,4 +26,16 @@ describe("resolveThing", () => {
     });
     expect(r.thing).toMatch(/Cloudflare OS/i);
   });
+
+  it("pulls a person name from a résumé title, not the host alone", () => {
+    const r = resolveThing("https://ali.indydevs.org/", {
+      ok: true,
+      title: "Ali-Akber Saifee: Résumé",
+      description:
+        "Software Engineer, with 15 years of experience in backend development",
+      host: "ali.indydevs.org",
+    });
+    expect(r.thing).toMatch(/Ali-Akber Saifee/i);
+    expect(r.thing.toLowerCase()).not.toBe("ali");
+  });
 });

@@ -151,6 +151,24 @@ function fromProbe(probe: ProbeResult): string | null {
   const productOs = findProductOs(blob);
   if (productOs) return productOs;
 
+  // "Ali-Akber Saifee: Résumé" / "Jane Doe — CV" / "Portfolio | Name"
+  // Note: \b after "é" fails in JS (é is not a \w char) — avoid trailing \b on résumé.
+  if (probe.title) {
+    const t = probe.title.replace(/\s+/g, " ").trim();
+    const doc =
+      "r[ée]sum[éee]|resume|cv|curriculum vitae|portfolio";
+    const name =
+      "([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ.'’\\-]*(?:\\s+[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ.'’\\-]*){0,4})";
+    const nameThenDoc = t.match(
+      new RegExp(`^${name}\\s*[:\\-–—|]\\s*(?:${doc})\\s*$`, "i"),
+    );
+    if (nameThenDoc?.[1]) return nameThenDoc[1].trim();
+    const docThenName = t.match(
+      new RegExp(`^(?:${doc})\\s*[:\\-–—|]\\s*${name}\\s*$`, "i"),
+    );
+    if (docThenName?.[1]) return docThenName[1].trim();
+  }
+
   // Title like "How we use AI with Cloudflare OS" → Cloudflare OS
   if (probe.title) {
     const withOs = probe.title.match(
@@ -195,7 +213,22 @@ export function resolveThing(
   const fromU = fromUrl(probe?.finalUrl || input);
   if (fromU) return { thing: fromU.thing, source: fromU.why, isUrl: true };
 
-  // Last resort: company from host, not full blog title
+  // Prefer page title lead over bare hostname (résumés, portfolios, product homes)
+  if (probe?.ok && probe.title) {
+    const lead = probe.title
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(/[|\-–—]/)[0]
+      ?.trim();
+    if (lead && lead.length >= 3 && lead.length <= 64 && !/^(how|why|what|when)\b/i.test(lead)) {
+      // "Name: Résumé" already handled in fromProbe; plain "Name" or product titles
+      if (/^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(lead)) {
+        return { thing: lead, source: "title", isUrl: true };
+      }
+    }
+  }
+
+  // Last resort: company from host
   try {
     const u = new URL(probe?.finalUrl || (input.includes("://") ? input : `https://${input}`));
     const brand = u.hostname.replace(/^www\./, "").split(".")[0] || u.hostname;

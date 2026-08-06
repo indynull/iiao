@@ -2,7 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { resolveThing } from "../src/analyze/thing";
 import { analyze } from "../src/analyze/engine";
-import { classify, preferRulesComedy } from "../src/analyze/comedy";
+import {
+  classify,
+  isPersonalSite,
+  preferRulesComedy,
+} from "../src/analyze/comedy";
 import { buildJudgmentTree } from "../src/analyze/tree-build";
 import { buildRoadmap } from "../src/analyze/roadmap";
 import { boardVoice, revoiceText } from "../src/analyze/voice";
@@ -218,35 +222,55 @@ app.post("/api/judge", async (c) => {
   }
 
   const isUrl = looksLikeUrl(subject);
+  // Links: always fetch page text before judging (Workers AI cannot browse itself)
   let probe: ProbeResult | null = null;
   if (isUrl) {
     probe = await probeUrl(subject);
   }
 
   const resolved = resolveThing(subject, probe);
+  const pageBlob = `${probe?.title ?? ""} ${probe?.description ?? ""} ${probe?.textSample ?? ""}`;
   const contextBits = [
     `User input: ${subject}`,
-    `Resolved product/thing to judge: ${resolved.thing}`,
-    `Resolution: ${resolved.source}`,
-    probe?.ok
-      ? `Page title: ${probe.title ?? "—"}\nMeta: ${probe.description ?? "—"}\nSnippet: ${(probe.textSample ?? "").slice(0, 900)}`
-      : isUrl
-        ? `Probe: failed (${probe?.error ?? "n/a"})`
-        : "No URL — free-form product/idea description.",
+    `Resolved thing to judge: ${resolved.thing}`,
+    `Resolution source: ${resolved.source}`,
+    isUrl
+      ? probe?.ok
+        ? [
+            `Fetched page OK (${probe.host ?? "site"})`,
+            `Page title: ${probe.title ?? "—"}`,
+            `Meta: ${probe.description ?? "—"}`,
+            `Headings: ${(probe.headings ?? []).slice(0, 8).join(" · ") || "—"}`,
+            `Snippet: ${(probe.textSample ?? "").slice(0, 1200)}`,
+          ].join("\n")
+        : `Fetch failed: ${probe?.error ?? "unknown"} — judge only from the URL string.`
+      : "No URL — free-form product/idea description.",
   ].join("\n");
 
   let analysis: Analysis | undefined;
   let engine: "workers-ai" | "rules" = "rules";
   let aiError: string | undefined;
 
-  // Handcrafted packs (cat, toaster, people, CF, …) — never let the model mad-lib them
-  const skipAi = preferRulesComedy(resolved.thing) || preferRulesComedy(subject);
+  // Handcrafted packs for known bits; URLs with page text go to the model
+  const personal = isPersonalSite({
+    blob: pageBlob,
+    displayName: resolved.thing,
+    subject,
+    host: probe?.host,
+  });
+  const skipAi =
+    preferRulesComedy(resolved.thing) ||
+    preferRulesComedy(subject) ||
+    personal;
 
   try {
     if (skipAi) {
       aiError = "rules pack";
     } else if (!c.env.AI) {
       aiError = "AI binding missing";
+    } else if (isUrl && !probe?.ok) {
+      // Don't invent page content we failed to fetch
+      aiError = `probe failed: ${probe?.error ?? "fetch"}`;
     } else {
       const judged = await runJudge(c.env.AI, resolved.thing, contextBits);
       if (judged.ok && !isBadComedy(judged.value)) {
@@ -262,13 +286,14 @@ app.post("/api/judge", async (c) => {
     aiError = e instanceof Error ? e.message : "ai threw";
   }
 
+  // Always re-analyze from the *original* subject + probe so URL→page resolve isn't lost
   if (!analysis) {
-    analysis = analyze(resolved.thing, probe);
+    analysis = analyze(subject, probe);
   }
 
   // Board addresses the user: "my cat" → "your cat" everywhere in the roast
-  const voiceSrc = resolved.thing || subject;
-  const voiced = boardVoice(analysis.stamp || voiceSrc);
+  const voiceSrc = analysis.stamp || resolved.thing || subject;
+  const voiced = boardVoice(voiceSrc);
   analysis = {
     ...analysis,
     subject,
@@ -284,14 +309,15 @@ app.post("/api/judge", async (c) => {
           steps: analysis.roadmap.steps.map((s) => revoiceText(s, voiceSrc)),
         }
       : analysis.roadmap,
+    probe,
   };
 
   const modelUsed = engine === "workers-ai" ? MODEL : null;
+  const thingOut = voiced || resolved.thing;
 
-  // Small KV write — await so we don't rely on waitUntil edge cases
   await recordTelemetry(c.env, {
     ts: new Date().toISOString(),
-    thing: resolved.thing.slice(0, 200),
+    thing: thingOut.slice(0, 200),
     inputKind: isUrl ? "url" : "claim",
     answer: String(analysis.verdict || "").slice(0, 16),
     confidence: Number(analysis.confidence) || 0,
@@ -305,9 +331,17 @@ app.post("/api/judge", async (c) => {
     ok: true,
     engine,
     model: modelUsed,
-    thing: resolved.thing,
+    thing: thingOut,
     thingSource: resolved.source,
     aiError: aiError || undefined,
+    probe: probe
+      ? {
+          ok: probe.ok,
+          host: probe.host,
+          title: probe.title,
+          error: probe.error,
+        }
+      : undefined,
     analysis,
   });
 });
@@ -456,6 +490,8 @@ E) Ordinary apps/SaaS not pretending:
    → still witty, not a dictionary definition
 
 BANNED OPENERS (instant fail): "X is a Y, not an operating system", "no matter how…", "don't let that fool you", "only if you consider"
+
+If Background includes a fetched page, judge the *product/person/site* the page is about — use title, meta, and snippet. Do not invent a different company from the hostname alone when the page names a person or product.
 
 Judge only THING. Unique lines every time (fridge ≠ toaster ≠ Biden ≠ shoe).
 

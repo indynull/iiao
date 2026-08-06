@@ -144,6 +144,49 @@ describe("single-serving comedy", () => {
     expect(steps).toMatch(/axle|donkey|clip_clop|bray|hay|cargo|wheel/);
     expect(steps).not.toMatch(/appliances that didn't ask|fail louder\. quiet competence is for appliances/);
   });
+
+  it("personal résumé site is person comedy, not SaaS marketing", () => {
+    const a = analyze("https://ali.indydevs.org/", {
+      ok: true,
+      title: "Ali-Akber Saifee: Résumé",
+      description:
+        "Software Engineer, with 15 years of experience in backend development, open source",
+      host: "ali.indydevs.org",
+      textSample:
+        "Professional Experience Open Source Projects Conferences cloudflare stripe security",
+      signals: {
+        os: 0,
+        kernel: 0,
+        hardware: 0,
+        schedule: 2,
+        platform: 2,
+        saas: 0,
+        browser: 2,
+        cloud: 0,
+        pricing: 0,
+        openSource: 5,
+        security: 5,
+        ai: 0,
+      },
+    });
+    expect(a.stamp.toLowerCase()).toMatch(/ali-akber|saifee/);
+    expect(a.verdict).toBe("YES");
+    const blob = [a.subtitle, ...(a.roast ?? [])].join(" ").toLowerCase();
+    expect(blob).not.toMatch(/checkout flow|hero image|platform cosplay|admin seat/);
+    expect(blob).toMatch(/career|boot|kernel|process|syscall|coffee|daemon|on-call|git|calendar|rent/);
+  });
+
+  it("different people do not share the same roast script", () => {
+    const a = analyze("Eliska Elaine Que");
+    const b = analyze("Ali-Akber Saifee");
+    expect(a.verdict).toBe("YES");
+    expect(b.verdict).toBe("YES");
+    expect(a.subtitle).not.toBe(b.subtitle);
+    // Shared tail lines without names = leakage
+    const aRest = (a.roast ?? []).slice(1).join("\n");
+    const bRest = (b.roast ?? []).slice(1).join("\n");
+    expect(aRest).not.toBe(bRest);
+  });
 });
 
 describe("permalink", () => {
